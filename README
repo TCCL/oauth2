@@ -1,0 +1,14 @@
+oauth2 PHP library
+--------------------------------------------------------------------------------
+This repository contains a PHP library that provides OAuth2 functionality.
+
+Primary authors:
+    Roger Gee <roger.gee@tulsalibrary.org>
+
+Other authors:
+
+--------------------------------------------------------------------------------
+Modules in this library:
+
+    oauth2 - handles OAuth2 functionality
+    http   - simple HTTP client implementation
