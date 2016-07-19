@@ -121,16 +121,7 @@ class HTTPRequest {
         // construct the request string
         $query = "";
         if (!empty($this->params['query'])) {
-            foreach ($this->params['query'] as $k => $v) {
-                if (!is_string($v))
-                    $v = var_export($v,true); // convert to a *sane* string format
-                if (!empty($v)) {
-                    if (!empty($query))
-                        $query .= "&";
-                    $query .= htmlentities($k) . "=" . htmlentities($v);
-                }
-            }
-            $query = "?$query";
+            $query = '?' . http_build_query($this->params['query']);
         }
         $request = "{$this->params['request_method']} {$this->params['request_uri']}$query HTTP/1.1\r\n"
                     . "Host: {$this->params['remote_host']}\r\n";
@@ -208,7 +199,7 @@ class HTTPRequest {
                 $result['statusMessage'] = $matches[2];
             }
             else {
-                if (!preg_match("/(.+):\s*(.+)\s*/",$line,$matches)) {
+                if (!preg_match("/(.+?):\s*(.+)\s*/",$line,$matches)) {
                     throw new Exception(__FUNCTION__.": bad header field in response: '$line'");
                 }
 
