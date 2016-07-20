@@ -10,10 +10,24 @@
 require_once("http.php.inc");
 
 /**
- * Enumerate exceptions that occur in this library
+ * Define a specialized exception type to support exceptions that we want users
+ * to potentially handle
+ */
+class OAuth2Exception extends Exception {
+    function __construct() {
+        // forward arguments to base class constructor
+        call_user_func_array("parent::__construct",func_get_args());
+    }
+}
+
+/**
+ * Enumerate exceptions that occur in this library that we want users to
+ * potentially handle
  */
 define('OAUTH_EXCEPTION_BAD_REQUEST',101);
 define('OAUTH_EXCEPTION_FAILED_REQUEST',102);
+define('OAUTH_EXCEPTION_INVALID_OPERATION',103);
+define('OAUTH_EXCEPTION_BAD_RESPONSE',104);
 
 /**
  * Defines the string used to key the access token cache
@@ -172,7 +186,9 @@ abstract class OAuth2 {
         }
 
         // token type is not supported at this time
-        throw new Exception(__FUNCTION__.": cannot understand token_type field");
+        throw new OAuth2Exception(__FUNCTION__
+            . ": cannot understand token_type={$this->token['token_type']} field",
+            OAUTH_EXCEPTION_INVALID_OPERATION);
     }
 
     /**
@@ -249,11 +265,12 @@ abstract class OAuth2 {
             $request = new HTTPRequest($this->params['token_endpoint'],$httpParams);
             $response = $request->makeRequest();
         } catch (Exception $e) {
-            throw new Exception($e->getMessage(),OAUTH_EXCEPTION_BAD_REQUEST);
+            throw new OAuth2Exception($e->getMessage(),OAUTH_EXCEPTION_BAD_REQUEST);
         }
         if ($response->statusCode != 200) {
-            throw new Exception(__FUNCTION__.": remote server did not grant access token: "
-                                . "got $response->statusCode",OAUTH_EXCEPTION_FAILED_REQUEST);
+            throw new OAuth2Exception(__FUNCTION__.": remote server did not grant access token: "
+                                . "got $response->statusCode: $response->error",
+                                OAUTH_EXCEPTION_FAILED_REQUEST);
         }
 
         // decode the response payload as a PHP array
@@ -397,14 +414,16 @@ class OAuth2AuthorizationCode extends OAuth2 {
         if (isset($_GET['code'])) {
             // lookup the redirect_uri and state from the user session
             if (!array_key_exists('state',$_REQUEST)) {
-                throw new Exception(__FUNCTION__.": no state parameter");
+                throw new OAuth2Exception(__FUNCTION__.": no state parameter",
+                    OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $state = $_REQUEST['state'];
             if (!isset($_SESSION[$key]['redirect'][$state])
                 || !isset($_SESSION[$key]['redirect']['state'])
                 || $_SESSION[$key]['redirect']['state'] != $state)
             {
-                throw new Exception(__FUNCTION__.": invalid state parameter");
+                throw new OAuth2Exception(__FUNCTION__.": invalid state parameter",
+                    OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $uri = $_SESSION[$key]['redirect'][$state];
             unset($_SESSION[$key]['redirect']);
@@ -432,7 +451,8 @@ class OAuth2AuthorizationCode extends OAuth2 {
                 // the server should have returned the state parameter back to
                 // us; we throw an exception in this case since we didn't get
                 // the required parameter back
-                throw new Exception(__FUNCTION__.": server did not send back 'state'");
+                throw new OAuth2Exception(__FUNCTION__.": server did not send back 'state'",
+                    OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $this->redirect($uri);
             // (control no longer in this script)
@@ -460,7 +480,9 @@ class OAuth2AuthorizationCode extends OAuth2 {
 
         // save the redirect uri in the session alongside the state parameter;
         // this uri will be the original uri that we want to return to later on
-        unset($_SESSION[$key]['redirect']);
+        if (isset($_SESSION[$key]['redirect'])) {
+            unset($_SESSION[$key]['redirect']);
+        }
         $_SESSION[$key]['redirect']['state'] = $state;
         $_SESSION[$key]['redirect'][$state] = $uri;
 
@@ -494,7 +516,8 @@ class OAuth2AuthorizationCode_Drupal extends OAuth2AuthorizationCode {
     }
 
     protected function redirect($uri) {
-        // note: this will call drupal_exit()
+        // note: this will call drupal_exit() which will use the 'exit' construct
+        // to stop the script
         drupal_goto($uri);
     }
 }

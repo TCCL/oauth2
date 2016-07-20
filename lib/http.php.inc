@@ -6,6 +6,19 @@
  */
 
 /**
+ * Define an exception type and exception code constants for exceptions generated
+ * in this module that we potentially want users to handle
+ */
+class HTTPException extends Exception {
+    function __construct() {
+        // forward arguments to parent class
+        call_user_func_array('parent::__construct',func_get_args());
+    }
+}
+define('HTTP_EXCEPTION_CANNOT_CONNECT',101);
+define('HTTP_EXCEPTION_BAD_RESPONSE',102);
+
+/**
  * Define protocol kinds and ports along with HTTP methods
  */
 define('HTTP','tcp:80');
@@ -41,7 +54,7 @@ class HTTPRequest {
      *  - data :: associative array of data payload fields; these are
      *  interpreted into a query string
      *  -- query :: associative array of data fields to include as a query
-     *  string
+     *  string; this will be passed to http_build_query()
      * @var array
      */
     private $params = array(
@@ -98,7 +111,7 @@ class HTTPRequest {
 
         // unionize with user-specified parameters; this may override some of
         // the parameters we just deduced and/or the defaults
-        if (!is_null($params)) {
+        if (is_array($params)) {
             if (array_key_exists('headers',$params))
                 $params['headers'] = $params['headers'] + $this->params['headers'];
             $this->params = $params + $this->params;
@@ -165,7 +178,9 @@ class HTTPRequest {
         // create socket connection to remote host
         $sock = stream_socket_client($sockaddr,$errno,$errmsg,HTTP_CONNECTION_TIMEOUT);
         if ($sock === false) {
-            throw new Exception(__FUNCTION__.": failed to open stream socket to $sockaddr: $errmsg");
+            throw new HTTPException(__FUNCTION__
+                    .": failed to open stream socket to $sockaddr: $errmsg",
+                    HTTP_EXCEPTION_CANNOT_CONNECT);
         }
 
         // write the request and close our end of the connection
@@ -192,7 +207,9 @@ class HTTPRequest {
 
             if (empty($result)) {
                 if (!preg_match("/^HTTP\/1\.(?:1|0)\s+([0-9]+)\s+(.+)\s*$/i",$line,$matches)) {
-                    throw new Exception(__FUNCTION__.": first response line was unexpected: '$line'");
+                    throw new HTTPException(__FUNCTION__
+                            .": first response line was unexpected: '$line'",
+                            HTTP_EXCEPTION_BAD_RESPONSE);
                 }
 
                 $result['statusCode'] = $matches[1];
@@ -200,7 +217,9 @@ class HTTPRequest {
             }
             else {
                 if (!preg_match("/(.+?):\s*(.+)\s*/",$line,$matches)) {
-                    throw new Exception(__FUNCTION__.": bad header field in response: '$line'");
+                    throw new HTTPException(__FUNCTION__
+                            .": bad header field in response: '$line'",
+                            HTTP_EXCEPTION_BAD_RESPONSE);
                 }
 
                 // add the header; normalize keys to lower case values (note:
@@ -255,7 +274,8 @@ class HTTPRequest {
             $offset += $hlen + 2; // length of hex string plus CRLF
             $s = substr($message,$offset,$bcount);
             if ($s === false) {
-                throw new Exception(__FUNCTION__.": chunked transfer not encoded correctly");
+                throw new HTTPException(__FUNCTION__.": chunked transfer not encoded correctly",
+                    HTTP_EXCEPTION_BAD_RESPONSE);
             }
             $payload .= $s;
 
@@ -264,7 +284,8 @@ class HTTPRequest {
 
             // verify that a CLRF sequence was found after the chunk data
             if (substr($message,$offset-2,2) != CRLF) {
-                throw new Exception(__FUNCTION__.": chunked transfer not encoded correctly");
+                throw new Exception(__FUNCTION__.": chunked transfer not encoded correctly",
+                    HTTP_EXCEPTION_BAD_RESPONSE);
             }
         }
         // note: there should be a trailing CRLF sequence at $offset
