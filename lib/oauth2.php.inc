@@ -161,7 +161,7 @@ abstract class OAuth2 {
      * directly to make api calls
      * @param  string $url      request url
      * @param  string $method   the request method to specify
-     * @param  array  $params   query string parameters
+     * @param  array  $params   extra http parameters
      * @return object           The response encoded as a PHP object
      */
     function apiCall($url,$method,array $params = array()) {
@@ -175,10 +175,9 @@ abstract class OAuth2 {
             $data = array(
                 'headers' => array(
                     'Authorization' => "Bearer {$this->token['access_token']}"
-                ),
-                'request_method' => $method,
-                'query' => $params
-            );
+                ) + (isset($params['headers']) ? $params['headers'] : array()),
+                'request_method' => $method
+            ) + $params;
 
             // make an HTTP request to perform the API call
             $request = new HTTPRequest($url,$data);

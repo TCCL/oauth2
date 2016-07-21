@@ -145,12 +145,17 @@ class HTTPRequest {
         }
         $dataBody = "";
         if (!empty($this->params['data'])) {
-            foreach ($this->params['data'] as $k => $v) {
-                if (!empty($v)) {
-                    if (!empty($dataBody))
-                        $dataBody .= "&";
-                    $dataBody .= htmlentities($k) . "=" . htmlentities($v);
+            if (is_array($this->params['data'])) {
+                foreach ($this->params['data'] as $k => $v) {
+                    if (!empty($v)) {
+                        if (!empty($dataBody))
+                            $dataBody .= "&";
+                        $dataBody .= htmlentities($k) . "=" . htmlentities($v);
+                    }
                 }
+            }
+            else {
+                $dataBody .= "{$this->params['data']}";
             }
         }
         if (!empty($dataBody)) {
@@ -185,13 +190,15 @@ class HTTPRequest {
 
         // write the request and close our end of the connection
         fwrite($sock,$request);
+        stream_set_timeout($sock,10);
         stream_socket_shutdown($sock,STREAM_SHUT_WR); // for writing
 
         // read the response until all bytes have been read
         $response = "";
         while (true) {
             $newbytes = fread($sock,4096);
-            if (empty($newbytes))
+            $info = stream_get_meta_data($sock);
+            if (empty($newbytes) || $info['timed_out'])
                 break;
             $response .= $newbytes;
         }
