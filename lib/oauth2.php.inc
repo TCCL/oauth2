@@ -82,6 +82,12 @@ abstract class OAuth2 {
     );
 
     /**
+     * Reference counter for closing inet connections
+     * @var integer
+     */
+    static private $ref = 1;
+
+    /**
      * Construct a new OAuth session; derived classes should forward their
      * constructor arguments to this base class constructor
      * @param string $url    The full url of the token resource server
@@ -104,6 +110,22 @@ abstract class OAuth2 {
         $tok = $this->cacheItemRetrieve('token');
         if (!empty($tok)) {
             $this->token = $tok;
+        }
+
+        self::$ref += 1;
+    }
+
+    /**
+     * When an instance is garbage-collected, we want to close any cached
+     * connections used by the instance; we use a reference counter to ensure
+     * the last instance closes any connections (so we limit the number of
+     * reconnections but not necessarily new connections)
+     */
+    function __destruct() {
+        self::$ref -= 1;
+        if (self::$ref <= 0) {
+            HTTPRequest::closeCachedConnections();
+            self::$ref = 0;
         }
     }
 
@@ -252,7 +274,6 @@ abstract class OAuth2 {
                 'scope' => $this->params['scope']
             ),
             'headers' => array(
-                'Connection' => 'close',
                 'Content-type' => 'application/x-www-form-urlencoded',
                 'Authorization' => "Basic $auth"
             ),
@@ -267,8 +288,9 @@ abstract class OAuth2 {
             throw new OAuth2Exception($e->getMessage(),OAUTH_EXCEPTION_BAD_REQUEST);
         }
         if ($response->statusCode != 200) {
+            $errorData = json_decode($response->data);
             throw new OAuth2Exception(__FUNCTION__.": remote server did not grant access token: "
-                                . "got $response->statusCode: $response->error",
+                                . "got $response->statusCode: $errorData->description",
                                 OAUTH_EXCEPTION_FAILED_REQUEST);
         }
 

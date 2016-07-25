@@ -14,11 +14,21 @@ $params = array(
 );
 
 try {
+    $request = new HTTPRequest("https://sandbox.iii.com/iii/sierra-api/docs",$params);
+    echo "Requesting " . $request->getURL() . PHP_EOL;
+    var_dump($request->makeRequest());
+} catch (Exception $e) {
+    echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
+    exit;
+}
+
+try {
     $request = new HTTPRequest("http://www.google.com/thing",$params);
     echo "Requesting " . $request->getURL() . PHP_EOL;
     var_dump($request->makeRequest());
 } catch (Exception $e) {
     echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
+    exit;
 }
 
 try {
@@ -27,6 +37,7 @@ try {
     var_dump($request->makeRequest());
 } catch (Exception $e) {
     echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
+    exit;
 }
 
 try {
@@ -35,15 +46,17 @@ try {
     var_dump($request->makeRequest());
 } catch (Exception $e) {
     echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
+    exit;
 }
 
-/*try {
+try {
     $request = new HTTPRequest("http://rserver.us:8080/strlength/roger",$params);
     echo "Requesting " . $request->getURL() . PHP_EOL;
     var_dump($request->makeRequest());
 } catch (Exception $e) {
     echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
-}*/
+    exit;
+}
 
 try {
     $request = new HTTPRequest("https://api.github.com/users/RogerGee/repos",$params);
@@ -51,4 +64,5 @@ try {
     var_dump($request->makeRequest());
 } catch (Exception $e) {
     echo "Failed request to " . $request->getURL() . ": " . $e->getMessage() . PHP_EOL;
+    exit;
 }

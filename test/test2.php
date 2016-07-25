@@ -26,7 +26,7 @@ var_dump($token);
 
 // play around with the Sierra sandbox
 
-$a = $session->apiCall(BIBS_API,HTTP_GET,array('query'=>(array("deleted"=>false,"suppressed"=>false,"limit"=>10))));
+$a = $session->apiCall(BIBS_API,HTTP_GET,array('query'=>(array("deleted"=>'false',"suppressed"=>'false',"limit"=>10))));
 var_dump($a);
 
 $b = $session->apiCall(AUTHORITY_API,HTTP_GET,array('query'=>array("limit"=>10)));
