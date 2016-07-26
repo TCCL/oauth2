@@ -464,17 +464,17 @@ class OAuth2AuthorizationCode extends OAuth2 {
             // to the cache before the script terminates
             $this->cacheItemStore('token',$tok);
 
-            // redirect back to the original url to complete the flow; this will
-            // lookup the redirect uri from the current user session; we do this
-            // so that we remove any query parameters that were introduced by the
-            // remote server
-            if (!array_key_exists('state',$_REQUEST)) {
-                // the server should have returned the state parameter back to
-                // us; we throw an exception in this case since we didn't get
-                // the required parameter back
-                throw new OAuth2Exception(__FUNCTION__.": server did not send back 'state'",
-                    OAUTH_EXCEPTION_BAD_RESPONSE);
+            // remove 'code' and 'state' from the query parameters; then url
+            // encode whatever is left over
+            unset($_GET['code']);
+            unset($_GET['state']);
+            if (!empty($_GET)) {
+                $uri .= "?" . http_build_query($_GET);
             }
+
+            // redirect back to the original url (from the user session) to
+            // complete the flow; we do this so to remove any query parameters
+            // that were introduced by the remote server
             $this->redirect($uri);
             // (control no longer in this script)
         }
