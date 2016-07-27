@@ -34,6 +34,9 @@ define('OAUTH_EXCEPTION_BAD_RESPONSE',104);
  */
 define('OAUTH_CACHE_KEY_PREFIX','oauth2/oauth2_client');
 
+/**
+ * OAuth2 provides a base class that represents the OAuth2 client-side state.
+ */
 abstract class OAuth2 {
     /**
      * Unique identifier for this oauth instance
@@ -90,8 +93,9 @@ abstract class OAuth2 {
     /**
      * Construct a new OAuth session; derived classes should forward their
      * constructor arguments to this base class constructor
+     *
      * @param string $url    The full url of the token resource server
-     * @param array $params OAuth parameters
+     * @param array  $params OAuth parameters
      */
     function __construct($url,array $params = array()) {
         // unionize user params with existing params (the user should specify
@@ -112,6 +116,7 @@ abstract class OAuth2 {
             $this->token = $tok;
         }
 
+        // up reference counter for new potential connector
         self::$ref += 1;
     }
 
@@ -131,7 +136,8 @@ abstract class OAuth2 {
 
     /**
      * Get the string access token representation
-     * @return string   access token
+     *
+     * @return string The access token component (i.e. its ID)
      */
     function getAccessToken() {
         // do the hard work...
@@ -143,7 +149,8 @@ abstract class OAuth2 {
 
     /**
      * Get the full access token information
-     * @return array    the full access token information
+     *
+     * @return array The full access token information
      */
     function getAccessTokenFull() {
         // do the hard work
@@ -156,6 +163,8 @@ abstract class OAuth2 {
     /**
      * Request an access token from the remote server; this is an implementation
      * function to be called by interface functions
+     *
+     * @return void
      */
     private function getAccessTokenImpl() {
         // use the current token if it hasn't yet expired
@@ -180,11 +189,13 @@ abstract class OAuth2 {
 
     /**
      * Preform a generic API call; alternatively users can use the 'http' library
-     * directly to make api calls
-     * @param  string $url      request url
-     * @param  string $method   the request method to specify
-     * @param  array  $params   extra http parameters
-     * @return object           The response encoded as a PHP object
+     * directly to make api calls and configure the access token themselves
+     *
+     * @param  string $url    The request url
+     * @param  string $method The request method to specify
+     * @param  array  $params Any extra HTTP parameters
+     *
+     * @return object The response encoded as a PHP object
      */
     function apiCall($url,$method,array $params = array()) {
         // always attempt to get an access token; if we already have one, then
@@ -214,14 +225,17 @@ abstract class OAuth2 {
 
     /**
      * Dervied classes implement this to specify which grant type they implement
-     * @return string       the flow identifier string (e.g. 'client_credentials')
+     *
+     * @return string The string identifying the grant type (e.g. 'client_credentials')
      */
     abstract function getFlowId();
 
     /**
      * Return one of the OAuth parameters for this session.
+     *
      * @param  string $key The key name of the desired parameter
-     * @return variant  The parameter value
+     *
+     * @return mixed The parameter value
      */
     final protected function getOAuthParam($key) {
         if (!array_key_exists($key,$this->params))
@@ -229,14 +243,22 @@ abstract class OAuth2 {
         return $this->params[$key];
     }
 
+    /**
+     * Get the unique key that can be used when caching values in a database
+     * or session table
+     *
+     * @return string
+     */
     final protected function getSessionKey() {
         return 'oauth2_client/' . $this->id;
     }
 
     /**
      * Gets a cached variable using the user-defined cache function
-     * @param  scalar $key the key that identifies the cached variable
-     * @return variant      the cached variable
+     *
+     * @param string $key The key that identifies the cached variable
+     *
+     * @return mixed The cached variable
      */
     final protected function cacheItemRetrieve($key) {
         $tok = call_user_func($this->params['token_cache_callback'],
@@ -247,8 +269,9 @@ abstract class OAuth2 {
     /**
      * Cache a variable using the user-defined cache function; every attempt is
      * made to make sure the key is unique while ensuring the key is a scalar
-     * @param  scalar $key   the key to use when caching
-     * @param  variant $value the value to cache
+     *
+     * @param string $key   The key used to identify the cached resource
+     * @param mixed  $value The value to place into the cache
      */
     final protected function cacheItemStore($key,$value) {
         call_user_func($this->params['token_cache_callback'],
@@ -257,8 +280,10 @@ abstract class OAuth2 {
 
     /**
      * This function implements the generic request procedure for an access token
-     * @param array $data   the data payload to include in the request
-     * @return array        the requested token structure
+     *
+     * @param array $data The data payload to include in the request
+     *
+     * @return array The requested token structure
      */
     final protected function requestToken(array $data) {
         // produce the authorization string; we only support using the HTTP
@@ -307,54 +332,64 @@ abstract class OAuth2 {
      * Derived classes should implement this method to request a new access token
      * in some implementation-specific way; the implementation should always call
      * getToken() at some point to perform the actual request
-     * @param array $params         the oauth2 parameters
-     * @return array    the access token structure
+     *
+     * @param array $params The oauth2 parameters
+     *
+     * @return array The access token structure
      */
     abstract protected function getTokenNew(array $params);
 
     /**
      * Gets a new access token based on the current refresh token
+     *
+     * @return array The refreshed access token structure
      */
     private function getTokenRefresh() {
         if (!array_key_exists('refresh_token',$this->token) || empty($this->token['refresh_token'])) {
             throw new Exception(__FUNCTION__.": access refresh token was not specified");
         }
 
-
+        // TODO: implement
     }
 
     /**
      * The default cache handler that uses the user session to record tokens
-     * @return string       returns the access token if only 1 argument was
-     * passed to the function
+     *
+     * @param string $key   The key that identifies the cached resource
+     * @param mixed  $value The value to store into the cache (optional)
+     *
+     * @return mixed Returns the cache value if no value was given
      */
-    private static function defaultCacheHandler() {
-        // by default we will store the access token in the user session
-        list($key,$tok) = func_get_args() + array('','');
+    private static function defaultCacheHandler(/* $key, [$value] */) {
+        // by default we will store the value in the user session
+        list($key,$value) = func_get_args() + array('','');
 
-        // testing environments don't have session set necessarily
+        // testing environments don't have session set necessarily; in this case
+        // we do nothing and the cache fails
         if (!isset($_SESSION))
             return false;
 
-        // lookup and return the access token
-        if (empty($tok)) {
+        // lookup and return the cached value if no store value was specified
+        if (empty($value)) {
             if (!array_key_exists($key,$_SESSION))
                 return false;
             return $_SESSION[$key];
         }
 
-        // otherwise just assign the token to the session
-        $_SESSION[$key] = $tok;
+        // otherwise just assign the value to the session
+        $_SESSION[$key] = $value;
     }
 }
 
 /**
- * An OAuth2 type that handles the 'client_credentials' authorization flow
- * (i.e. grant type)
+ * An OAuth2 type that handles the 'client_credentials' grant type
  */
 class OAuth2ClientCredentials extends OAuth2 {
     /**
      * Construct a new OAuth2 object that handles the 'client_credentials' flow
+     *
+     * Parameters to this function are the same as the base class; I have a
+     * constructor here in case I want to add anything later...
      */
     function __construct() {
         // forward arguments to parent constructor
@@ -363,16 +398,20 @@ class OAuth2ClientCredentials extends OAuth2 {
 
     /**
      * Returns the flow-id for this derivation
+     *
+     * @return string The identifier as defined by the OAauth2 protocol
      */
     final function getFlowId() {
         return 'client_credentials';
     }
 
     /**
-     * Implements 'getTokenNew' to request an access token from the remote server
+     * Implements getTokenNew() to request an access token from the remote server
      * using the 'client_credentials' authorization flow
-     * @param array $params         the oauth2 parameters
-     * @return array                the access token
+     *
+     * @param array $params The OAuth2 parameters
+     *
+     * @return array The access token structure
      */
     protected function getTokenNew(array $params) {
         // this is really simple: just do a request
@@ -381,13 +420,21 @@ class OAuth2ClientCredentials extends OAuth2 {
 }
 
 /**
- * An OAuth2 type that handles the 'authorization_code' authorization flow
+ * An OAuth2 type that handles the 'authorization_code' grant type. This kind
+ * of authorization flow involves redirecting the user-agent to the authorization
+ * server. Then the
  */
 class OAuth2AuthorizationCode extends OAuth2 {
     /**
      * Construct a new OAuth2 object that handles the 'authorization_code' flow
+     *
+     * @param string $url     The remote token request endpoint
+     * @param string $authUrl The remote authorization endpoint
+     * @param array  $params  Additional protocol parameters (must include 'redirect_uri')
      */
     function __construct($url,$authUrl,array $params) {
+        // verify that the caller provided a redirection URI required by the
+        // OAuth2 protocol
         if (!array_key_exists('redirect_uri',$params)) {
             throw new Exception(__FUNCTION__.": expected a redirect_uri parameter");
         }
@@ -411,29 +458,37 @@ class OAuth2AuthorizationCode extends OAuth2 {
 
     /**
      * Returns the flow-id for this derivation
+     *
+     * @return string The identifier as defined by the OAauth2 protocol
      */
     final function getFlowId() {
         return 'authorization_code';
     }
 
     /**
-     * Implements 'getTokenNew' to request an access token from the remote server
-     * using the 'authorization_code' authorization flow; this flow works in three
+     * Implements getTokenNew() to request an access token from the remote server
+     * using the 'authorization_code' grant type; this flow works in three
      * steps:
      * 		1. request an authorization code from authorization endpoint
      * 		2. receive the authorization code (or error if client failed auth.)
      * 		3. request an access token (and cache it), then redirect back to the
      * 		    original page
-     * @param array $params         the oauth2 parameters
-     * @return array                the access token
+     *
+     * @param array $params The provided OAuth2 parameters
+     *
+     * @return array The access token structure
      */
     protected function getTokenNew(array $params) {
         $key = $this->getSessionKey();
 
-        // if $_GET[code] is defined then we have (nearly) completed the
-        // three-step flow
+        // if $_GET[code] is defined then we have completed step 2 of three
+        // steps; now we must request an access token using the authorization
+        // code
         if (isset($_GET['code'])) {
-            // lookup the redirect_uri and state from the user session
+            // lookup the redirect_uri and state from the user session; use the
+            // state value to verify the response from the server; we'll use the
+            // redirect_uri value in the token request and to perform a final
+            // redirect to clean up the user-agent's url heading
             if (!array_key_exists('state',$_REQUEST)) {
                 throw new OAuth2Exception(__FUNCTION__.": no state parameter",
                     OAUTH_EXCEPTION_BAD_RESPONSE);
@@ -447,11 +502,11 @@ class OAuth2AuthorizationCode extends OAuth2 {
                     OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $uri = $_SESSION[$key]['redirect'][$state];
-            unset($_SESSION[$key]['redirect']);
+            unset($_SESSION[$key]['redirect']); // cleanup session
 
             // prepare the data parameters we will include in the POST request
             // for the access token; these are combined with the default values
-            // that 'requestToken()' already handles
+            // that requestToken() already handles
             $data = array(
                 'code' => $_GET['code'],
                 'redirect_uri' => $uri,
@@ -465,7 +520,8 @@ class OAuth2AuthorizationCode extends OAuth2 {
             $this->cacheItemStore('token',$tok);
 
             // remove 'code' and 'state' from the query parameters; then url
-            // encode whatever is left over
+            // encode whatever is left over so that we save any original query
+            // parameters
             unset($_GET['code']);
             unset($_GET['state']);
             if (!empty($_GET)) {
@@ -476,6 +532,7 @@ class OAuth2AuthorizationCode extends OAuth2 {
             // complete the flow; we do this so to remove any query parameters
             // that were introduced by the remote server
             $this->redirect($uri);
+            exit; // just in case
             // (control no longer in this script)
         }
         // otherwise we start from the beginning of the flow
@@ -487,7 +544,7 @@ class OAuth2AuthorizationCode extends OAuth2 {
         // obtain redirect_uri parameter for remote server
         $uri = $params['redirect_uri'];
 
-        // generate the uri to which we will redirect the user-agent
+        // generate the URI to which we will redirect the user-agent
         $queryParams = array(
             'response_type' => 'code',
             'client_id' => $params['client_id'],
@@ -499,8 +556,8 @@ class OAuth2AuthorizationCode extends OAuth2 {
         }
         $authUri = $params['auth_endpoint'] . '?' . http_build_query($queryParams);
 
-        // save the redirect uri in the session alongside the state parameter;
-        // this uri will be the original uri that we want to return to later on
+        // save the redirect URI in the session alongside the state parameter;
+        // this URI will be the original URI to which we want to return later on
         if (isset($_SESSION[$key]['redirect'])) {
             unset($_SESSION[$key]['redirect']);
         }
@@ -510,13 +567,16 @@ class OAuth2AuthorizationCode extends OAuth2 {
         // redirect the user to the authorization endpoint; this will terminate
         // the script
         $this->redirect($authUri);
+        exit; // just in case
         // (control no longer in this script)
     }
 
     /**
      * Derived classes may override this to do a redirect in some application-specific
-     * way; by default we simply insert a 'Location' header into the response
-     * @param  string $uri      the redirect uri
+     * way; by default we simply insert a 'Location' header into the response to
+     * redirect the user-agent to the specified resource
+     *
+     * @param string $uri The redirect URI (this should preferably be an absolute path)
      */
     protected function redirect($uri) {
         header("Location: $uri");
@@ -529,6 +589,14 @@ class OAuth2AuthorizationCode extends OAuth2 {
  * for redirection and redirect_uri configuration
  */
 class OAuth2AuthorizationCode_Drupal extends OAuth2AuthorizationCode {
+    /**
+     * Constructs a new Drupal-based OAuth2 object that handles the
+     * 'authorization_code' OAuth2 grant type
+     *
+     * @param string $url     The remote token endpoint URL
+     * @param string $authUrl The remote authorization endpoint URL
+     * @param array  $params  Additional protocol parameters (must include 'redirect_uri')
+     */
     function __construct($url,$authUrl,array $params) {
         $redirectUri = drupal_get_destination()['destination'];
         $redirectUri = url($redirectUri,array('query'=>$_REQUEST,'absolute'=>true));
@@ -536,6 +604,12 @@ class OAuth2AuthorizationCode_Drupal extends OAuth2AuthorizationCode {
         parent::__construct($url,$authUrl,$params + array('redirect_uri'=>$redirectUri));
     }
 
+    /**
+     * Override redirect() to use drupal_goto() as Drupal performs some additional
+     * processing when redirecting
+     *
+     * @param  string $uri The URI to which to redirect
+     */
     protected function redirect($uri) {
         // note: this will call drupal_exit() which will use the 'exit' construct
         // to stop the script

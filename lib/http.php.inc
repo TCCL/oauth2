@@ -36,11 +36,11 @@ define('CRLF',"\r\n");
 define('HTTP_CONNECTION_TIMEOUT',5);
 
 /**
- * Represents and performs an HTTP request
+ * HTTPRequest represents and performs an HTTP request
  */
 class HTTPRequest {
     /**
-     * The original url
+     * The original url string
      * @var string
      */
     private $url;
@@ -96,9 +96,10 @@ class HTTPRequest {
 
     /**
      * Create a new HTTPRequest object
-     * @param string $url    the url of the request
-     * @param array $params parameters to customize the request
-     * @param boolean $secure if true then force https
+     *
+     * @param string  $url    The url of the request
+     * @param array   $params Parameters to customize the request
+     * @param boolean $secure If TRUE then force ssl on connection
      */
     function __construct($url,$params = null,$secure = false) {
         if (!self::$register) {
@@ -138,10 +139,34 @@ class HTTPRequest {
         }
     }
 
+    /**
+     * Close cached connections; I'm pretty sure PHP would destroy these at some
+     * point but it's nice to be able to do it ourselves
+     */
+    static function closeCachedConnections() {
+        foreach (self::$conns as list($sock,$_)) {
+            fclose($sock);
+        }
+        self::$conns = array();
+    }
+
+    /**
+     * Returns the original request URL provided when the request was created
+     *
+     * @return string
+     */
     function getURL() {
         return $this->url;
     }
 
+    /**
+     * Performs the actual HTTP request and returns the response
+     *
+     * The response object's properties represent response header fields
+     * (e.g. $response->contentLength)
+     *
+     * @return object The PHP object representing the response
+     */
     function makeRequest() {
         if (!empty($this->cache['request']) && !empty($this->cache['sockaddr'])) {
             return self::http($this->cache['sockaddr'],$this->cache['request']);
@@ -196,26 +221,17 @@ class HTTPRequest {
     }
 
     /**
-     * Close cached connections; I'm pretty sure PHP would destroy these at some
-     * point but it's nice to be able to do it ourselves
-     */
-    static function closeCachedConnections() {
-        foreach (self::$conns as list($sock,$_)) {
-            fclose($sock);
-        }
-        self::$conns = array();
-    }
-
-    /**
      * Perform a generic HTTP request
-     * @param  string $sockaddr the socket connect address
-     * @param  string $request  the entire request message (headers & body)
-     * @return array           A PHP object containing the headers as properties
-     *  and a 'data' property; the 'data' payload will not be modified
+     *
+     * @param  string $sockaddr The socket connect address
+     * @param  string $request  The entire request message (headers & body)
+     *
+     * @return array A PHP object representing the response
      */
     private static function http($sockaddr,$request) {
-        // try to load an existing connection from the remote host; since we send
-        // keep-alives to the Web server then
+        // try to load an existing connection from the remote host; since we
+        // send keep-alives to the Web server then there is a chance the
+        // conneciton is still good
         $sock = false;
         $response = "";
         if (isset(self::$conns[$sockaddr])) {
@@ -247,17 +263,21 @@ class HTTPRequest {
         // read the response until the end of an HTTP response message
         $iterator = false;
         while ($iterator === false) {
-            // attempt to read some more bytes
+            // attempt to read some more bytes; we consider the connection shut
+            // down if we read the conventional EOF (i.e. empty read) OR if the
+            // read operation timed out
             $newbytes = fread($sock,4096);
             $info = stream_get_meta_data($sock);
             if (empty($newbytes) || $info['timed_out'])
                 break;
             $response .= $newbytes;
 
-            // attempt to parse the response so far; I hope that most if not
-            // all of the message was sent at once; this would mean calls to
-            // the following method would be limited
-            $result = self::parseHttpMessage($response,feof($sock),$iterator,$_);
+            // attempt to parse the response so far; I hope that most if not all
+            // of the message was sent at once; this would mean calls to the
+            // following method would be limited; however, some servers will
+            // sent data in small increments; to that end the following method
+            // will cache its progress in $_ until it can read a whole response
+            $result = self::parseHttpMessage($response,$iterator,$_);
         }
 
         // if $iter is false then we never got a complete message (at least within
@@ -282,30 +302,37 @@ class HTTPRequest {
             self::$conns[$sockaddr] = array($sock,$remain === false ? "" : $remain);
         }
 
+        // map any "dashed" key names to Camel-case
+        foreach ($result as $k => $v) {
+            $r = preg_replace_callback('/(-)(.)/',function($m){return strtoupper($m[2]);},$k);
+            if ($r != $k) {
+                unset($result[$k]);
+                $result[$r] = $v;
+            }
+        }
+
         // parse the response into a PHP object and return it
         return (object) $result;
     }
 
     /**
-     * This function parses the response line and headers of an HTTP response message
-     * @param  string $response
-     *         The HTTP response body
-     * @param  boolean $eof
-     *         Indicates if the $response indicates the end of an operation
-     * @param  integer $iterator
-     *         The function will write the offset in $response after the logical
-     *         end of the message OR 'false' if the end of the message was not reached
-     * @param array    $progress
-     *        Used to speed up parsing if this is a subsequent parse attempt;
-     *        this is used internally by the function's implementation
-     * @return array
-     *         An associative array containing the response headers, status
-     *         code, status message and data payload
+     * This function parses an HTTP response message, including the response line,
+     * headers and data payload (if any). If returns an array that represents
+     * the HTTP response.
+     *
+     * @param string  $response The HTTP response body
+     * @param integer $iterator The function will write the offset in $response after the logical
+     *                          end of the message OR 'false' if the end of the message was not reached
+     * @param array   $progress Used to speed up parsing if this is a subsequent parse attempt; this is
+     *                          used internally by the function's implementation
+     *
+     * @return array An associative array containing the response headers, status
+     *               code, status message and data payload
      */
-    private static function parseHttpMessage($response,$eof,&$iterator,&$progress) {
+    private static function parseHttpMessage($response,&$iterator,&$progress) {
+        // check to see if we've already parsed the header fields
         if (!isset($progress['header-state'])) {
             $result = array(); // the result array
-            $foundEnd = false; // did we find the end of the header section?
             $iterator = 0; // rolling offset into response message
 
             // process the response line/header fields
@@ -317,7 +344,6 @@ class HTTPRequest {
                 // section of the HTTP response
                 if (empty($line)) {
                     // flag that we have reached the end of the headers section
-                    $foundEnd = true;
                     $progress['header-state'] = $result;
                     $progress['iterator'] = $iterator;
                     break;
@@ -351,14 +377,13 @@ class HTTPRequest {
         }
         else {
             // otherwise we already parsed the headers and can restore them
-            $foundEnd = true;
             $result = $progress['header-state'];
             $iterator = $progress['iterator'];
         }
 
-        // if the end of the header section wasn't found, set the out parameter
-        // $iterator to false
-        if (!$foundEnd) {
+        // if the header's haven't been parsed, then the response is incomplete;
+        // otherwise we can move on to reading the data payload (if any)
+        if (!isset($progress['header-state'])) {
             $iterator = false;
         }
         else {
@@ -398,22 +423,28 @@ class HTTPRequest {
 
     /**
      * Decodes a message payload sent with 'Transfer-Encoding: chunked' option
-     * @param  string $response The complete response message
-     * @param  integer $offset  The current offset into the response message; if
-     * the payload is incomplete, then we will set this to false
-     * @param  array   $progress  Saves the progress state for efficiency
-     * @return string           The decoded payload of the
+     *
+     * @param string  $response The complete response message
+     * @param integer $offset   The current offset into the response message; if
+     *                          the payload is incomplete, then we will set this
+     *                          to false
+     * @param array   $progress Saves the progress state for efficiency
+     *
+     * @return string           The decoded response payload
      */
     private static function chunkedTransferDecode($message,&$offset,&$progress) {
         // Note: the HTTP/1.1 spec (i.e. rfc2616 sec-3.6.1) details a chunk-extension
         // syntax and trailer syntax (for additional headers); we do not handle
         // these here
 
+        // load any values from a previous iteration of this routine
         $payload = isset($progress['payload']) ? $progress['payload'] : "";
         $stage = isset($progress['stage']) ? $progress['stage'] : 1;
 
+        // enter a loop to read data chunks
         while (true) {
-            // restore previous context (I know, this is nasty but quick)
+            // restore previous context only once (I know, this is nasty! But
+            // it's quick (unfortunately PHP doesn't let me jump into a loop...)
             if (isset($stage)) {
                 $cpy = $stage;
                 unset($stage);
@@ -441,7 +472,7 @@ class HTTPRequest {
             $offset += $hlen + 2; // seek length of hex string plus CRLF
             if ($progress['bcount'] == 0) {
                 // the server should have sent a zero length chunk to indicate
-                // that we have finished reading the payload
+                // that it has finished sending the chunked data payload
                 $stage = 4;
                 break;
             }
@@ -480,7 +511,7 @@ class HTTPRequest {
             $progress['payload'] = $payload;
             $progress['iterator'] = $offset;
             $progress['stage'] = isset($stage) ? $stage : 4;
-            $offset = false;
+            $offset = false; // flag that we failed
         }
         else {
             $offset += 2;
