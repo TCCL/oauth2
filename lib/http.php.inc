@@ -6,13 +6,13 @@
  */
 
 /**
- * Define an exception type and exception code constants for exceptions generated
- * in this module that we potentially want users to handle
+ * Define an exception type and exception code constants for exceptions
+ * generated in this module that we potentially want users to handle
  */
 class HTTPException extends Exception {
-    function __construct() {
+    function __construct($message,$code) {
         // forward arguments to parent class
-        call_user_func_array('parent::__construct',func_get_args());
+        call_user_func('parent::__construct',"in function $message",$code);
     }
 }
 define('HTTP_EXCEPTION_CANNOT_CONNECT',101);
@@ -33,7 +33,7 @@ define('HTTP_DELETE','DELETE');
  * Misc. defines
  */
 define('CRLF',"\r\n");
-define('HTTP_CONNECTION_TIMEOUT',5);
+define('HTTP_CONNECTION_TIMEOUT',60);
 
 /**
  * HTTPRequest represents and performs an HTTP request
@@ -113,13 +113,13 @@ class HTTPRequest {
         // parse the url to deduce the uri, host and protocol parameters
         $uri = @parse_url($url);
         if (!isset($uri['scheme'])) {
-            throw new Exception(__FUNCTION__.": url must specify protocol");
+            throw new Exception(__METHOD__.": url must specify protocol");
         }
         if (strtolower($uri['scheme']) == 'https') {
             $this->params['protocol'] = HTTPS;
         }
         else if ($secure) {
-            throw new Exception(__FUNCTION__.": url scheme must be https by user option in '$url'");
+            throw new Exception(__METHOD__.": url scheme must be https by user option in '$url'");
         }
         else {
             $this->params['protocol'] = HTTP;
@@ -250,11 +250,11 @@ class HTTPRequest {
             // create socket connection to remote host
             $sock = @stream_socket_client($sockaddr,$errno,$errmsg,HTTP_CONNECTION_TIMEOUT);
             if ($sock === false) {
-                throw new HTTPException(__FUNCTION__
+                throw new HTTPException(__METHOD__
                     .": failed to open stream socket to $sockaddr: $errmsg",
                     HTTP_EXCEPTION_CANNOT_CONNECT);
             }
-            stream_set_timeout($sock,10);
+            stream_set_timeout($sock,HTTP_CONNECTION_TIMEOUT);
         }
 
         // write the request
@@ -285,7 +285,7 @@ class HTTPRequest {
         if ($iterator === false) {
             fclose($sock);
             unset(self::$conns[$sockaddr]);
-            throw new HTTPException(__FUNCTION__.": the remote host either took "
+            throw new HTTPException(__METHOD__.": the remote host either took "
                 . "too long to respond or shut down the connection",
                     HTTP_EXCEPTION_CONNECTION_TIMED_OUT);
         }
@@ -352,7 +352,7 @@ class HTTPRequest {
                 // parse the first line if we haven't processed any lines yet
                 if (empty($result)) {
                     if (!preg_match("/^HTTP\/1\.(?:1|0)\s+([0-9]+)\s+(.+)\s*$/i",$line,$matches)) {
-                        throw new HTTPException(__FUNCTION__
+                        throw new HTTPException(__METHOD__
                                 .": response line was incorrectly formatted: '$line'",
                                 HTTP_EXCEPTION_BAD_RESPONSE);
                     }
@@ -364,7 +364,7 @@ class HTTPRequest {
                 // otherwise parse a header line
                 else {
                     if (!preg_match("/(.+?):\s*(.+)\s*/",$line,$matches)) {
-                        throw new HTTPException(__FUNCTION__
+                        throw new HTTPException(__METHOD__
                                 .": bad header field in response: '$line'",
                                 HTTP_EXCEPTION_BAD_RESPONSE);
                     }
@@ -497,7 +497,7 @@ class HTTPRequest {
                 }
 
                 // otherwise the payload was not formatted correctly
-                throw new Exception(__FUNCTION__.": chunked transfer not encoded correctly",
+                throw new Exception(__METHOD__.": chunked transfer not encoded correctly",
                     HTTP_EXCEPTION_BAD_RESPONSE);
             }
         }

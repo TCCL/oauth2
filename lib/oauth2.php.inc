@@ -14,9 +14,9 @@ require_once("http.php.inc");
  * to potentially handle
  */
 class OAuth2Exception extends Exception {
-    function __construct() {
+    function __construct($message,$code) {
         // forward arguments to base class constructor
-        call_user_func_array("parent::__construct",func_get_args());
+        call_user_func("parent::__construct","in function $message",$code);
     }
 }
 
@@ -218,7 +218,7 @@ abstract class OAuth2 {
         }
 
         // token type is not supported at this time
-        throw new OAuth2Exception(__FUNCTION__
+        throw new OAuth2Exception(__METHOD__
             . ": cannot understand token_type={$this->token['token_type']} field",
             OAUTH_EXCEPTION_INVALID_OPERATION);
     }
@@ -314,7 +314,7 @@ abstract class OAuth2 {
         }
         if ($response->statusCode != 200) {
             $errorData = json_decode($response->data);
-            throw new OAuth2Exception(__FUNCTION__.": remote server did not grant access token: "
+            throw new OAuth2Exception(__METHOD__.": remote server did not grant access token: "
                                 . "got $response->statusCode: $errorData->description",
                                 OAUTH_EXCEPTION_FAILED_REQUEST);
         }
@@ -346,7 +346,7 @@ abstract class OAuth2 {
      */
     private function getTokenRefresh() {
         if (!array_key_exists('refresh_token',$this->token) || empty($this->token['refresh_token'])) {
-            throw new Exception(__FUNCTION__.": access refresh token was not specified");
+            throw new Exception(__METHOD__.": access refresh token was not specified");
         }
 
         // TODO: implement
@@ -436,7 +436,7 @@ class OAuth2AuthorizationCode extends OAuth2 {
         // verify that the caller provided a redirection URI required by the
         // OAuth2 protocol
         if (!array_key_exists('redirect_uri',$params)) {
-            throw new Exception(__FUNCTION__.": expected a redirect_uri parameter");
+            throw new Exception(__METHOD__.": expected a redirect_uri parameter");
         }
 
         // save auth_endpoint parameter
@@ -490,7 +490,7 @@ class OAuth2AuthorizationCode extends OAuth2 {
             // redirect_uri value in the token request and to perform a final
             // redirect to clean up the user-agent's url heading
             if (!array_key_exists('state',$_REQUEST)) {
-                throw new OAuth2Exception(__FUNCTION__.": no state parameter",
+                throw new OAuth2Exception(__METHOD__.": no state parameter",
                     OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $state = $_REQUEST['state'];
@@ -498,7 +498,7 @@ class OAuth2AuthorizationCode extends OAuth2 {
                 || !isset($_SESSION[$key]['redirect']['state'])
                 || $_SESSION[$key]['redirect']['state'] != $state)
             {
-                throw new OAuth2Exception(__FUNCTION__.": invalid state parameter",
+                throw new OAuth2Exception(__METHOD__.": invalid state parameter",
                     OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $uri = $_SESSION[$key]['redirect'][$state];
