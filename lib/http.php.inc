@@ -165,10 +165,17 @@ class HTTPRequest {
      * The response object's properties represent response header fields
      * (e.g. $response->contentLength)
      *
+     * @param bool $compileOnly
+     *  If true, then the request string is only compiled and not sent to the
+     *  remote host.
+     *
      * @return object The PHP object representing the response
      */
-    function makeRequest() {
+    function makeRequest($compileOnly = false) {
         if (!empty($this->cache['request']) && !empty($this->cache['sockaddr'])) {
+            if ($compileOnly) {
+                return new stdClass;
+            }
             return self::http($this->cache['sockaddr'],$this->cache['request']);
         }
 
@@ -216,8 +223,42 @@ class HTTPRequest {
         $this->cache['sockaddr'] = $sockaddr;
         $this->cache['request'] = $request;
 
+        if ($compileOnly) {
+            // Don't perform the request.
+            return new stdClass;
+        }
+
         // perform the request
         return self::http($sockaddr,$request);
+    }
+
+    /**
+     * Sets the data payload for the HTTP request.
+     *
+     * @param mixed $value
+     *  The value for the HTTP request
+     */
+    function setPayload($value) {
+        $this->params['data'] = $value;
+    }
+
+    /**
+     * Sets an HTTP request header.
+     *
+     * @param string $name
+     *  The name of the HTTP request header to set
+     * @param mixed $value
+     *  The value of the header (this must be cast-able to string)
+     */
+    function setHeader($name,$value) {
+        $this->params['headers'][$name] = $value;
+    }
+
+    function __toString() {
+        if (empty($this->cache['request'])) {
+            $this->makeRequest(true);
+        }
+        return $this->cache['request'];
     }
 
     /**
