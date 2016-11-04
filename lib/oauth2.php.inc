@@ -9,6 +9,8 @@
 
 require_once("http.php.inc");
 
+define('OAUTH_LIBRARY_VERSION','1.0.0');
+
 /**
  * Define a specialized exception type to support exceptions that we want users
  * to potentially handle
