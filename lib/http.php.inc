@@ -1,17 +1,19 @@
 <?php
 
 /**
- * This file provides simple HTTP/HTTPS request interaction
+ * This file provides a simple HTTP/HTTPS client implementation for use by the
+ * OAuth2 module.
+ *
  * @package oauth2
  */
 
 /**
  * Define an exception type and exception code constants for exceptions
- * generated in this module that we potentially want users to handle
+ * generated in this module that we potentially want users to handle.
  */
 class HTTPException extends Exception {
     function __construct($message,$code) {
-        // forward arguments to parent class
+        // Forward arguments to parent class.
         call_user_func('parent::__construct',"in function $message",$code);
     }
 }
@@ -20,7 +22,7 @@ define('HTTP_EXCEPTION_BAD_RESPONSE',102);
 define('HTTP_EXCEPTION_CONNECTION_TIMED_OUT',103);
 
 /**
- * Define protocol kinds and ports along with HTTP methods
+ * Define protocol kinds and ports along with HTTP methods.
  */
 define('HTTP','tcp:80');
 define('HTTPS','ssl:443');
@@ -36,36 +38,45 @@ define('CRLF',"\r\n");
 define('HTTP_CONNECTION_TIMEOUT',60);
 
 /**
- * HTTPRequest represents and performs an HTTP request
+ * HTTPRequest represents and performs an HTTP request.
  */
 class HTTPRequest {
     /**
      * The original url string
+     *
      * @var string
      */
     private $url;
 
     /**
      * The parameters used to make the request
-     *  - remote_host :: the host name or IP address of the remote host
-     *  - request_uri :: the resource to request on the remote server
-     *  - protocol :: either HTTP or HTTPS constant
-     *  - request_method :: one of the HTTP_* constants
-     *  - headers :: headers to include in the request
-     *  - data :: associative array of data payload fields; these are
-     *  interpreted into a query string
-     *  -- query :: associative array of data fields to include as a query
-     *  string; this will be passed to http_build_query()
+     *  - remote_host
+     *      The host name or IP address of the remote host
+     *  - request_uri
+     *      The resource to request on the remote server
+     *  - protocol
+     *      Either HTTP or HTTPS constant
+     *  - request_method
+     *      One of the HTTP_* constants
+     *  - headers
+     *      Headers to include in the request
+     *  - data
+     *      Associative array of data payload fields; these are interpreted into
+     *      a query string
+     *  - query
+     *      associative array of data fields to include as a query string; this
+     *      will be passed to http_build_query()
+     *
      * @var array
      */
     private $params = array(
-        /* these first three fields should be set automatically */
+        /* These first three fields should be set automatically. */
         'remote_host' => null,
         'request_uri' => null,
         'protocol' => null,
         'port' => null,
 
-        /* user can provide these themself */
+        /* Users can provide these themselves. */
         'request_method' => HTTP_POST,
         'headers' => array(
             'Connection' => 'keep-alive',
@@ -77,7 +88,8 @@ class HTTPRequest {
 
     /**
      * The cached request string and socket address (in case the same request
-     * is made again)
+     * is made again).
+     *
      * @var array
      */
     private $cache = array(
@@ -87,30 +99,37 @@ class HTTPRequest {
 
     /**
      * Cache connections to remote host so we can improve performance by making
-     * less connections; the cached object is an array whose first element is the
-     * socket stream resource and whose second is the connection input buffer
-     * @var array('host name' => array(socket_stream,string))
+     * less connections. The cached object is an array whose first element is
+     * the socket stream resource and whose second is the connection input
+     * buffer. These connections only exist for the duration of the request.
+     *
+     * @var array
      */
     static private $conns = array();
     static private $register = false;
 
     /**
-     * Create a new HTTPRequest object
+     * Create a new HTTPRequest object.
      *
-     * @param string  $url    The url of the request
-     * @param array   $params Parameters to customize the request
-     * @param boolean $secure If TRUE then force ssl on connection
+     * @param string $url
+     *  The url of the request
+     * @param array $params
+     *  Parameters to customize the request
+     * @param boolean $secure
+     *  If TRUE then force ssl on connection
      */
     function __construct($url,$params = null,$secure = false) {
+        // Register a shutdown function that will close the cached connections
+        // cleanly. We only need to do this once for all instances.
         if (!self::$register) {
             self::$register = true;
             register_shutdown_function("HTTPRequest::closeCachedConnections");
         }
 
-        // remember original url string
+        // Remember original url string.
         $this->url = $url;
 
-        // parse the url to deduce the uri, host and protocol parameters
+        // Parse the url to deduce the uri, host and protocol parameters.
         $uri = @parse_url($url);
         if (!isset($uri['scheme'])) {
             throw new Exception(__METHOD__.": url must specify protocol");
@@ -130,8 +149,8 @@ class HTTPRequest {
             $this->params['port'] = $uri['port'];
         }
 
-        // unionize with user-specified parameters; this may override some of
-        // the parameters we just deduced and/or the defaults
+        // Unionize with user-specified parameters. This may override some of
+        // the parameters we just deduced and/or the defaults.
         if (is_array($params)) {
             if (array_key_exists('headers',$params))
                 $params['headers'] = $params['headers'] + $this->params['headers'];
@@ -140,8 +159,8 @@ class HTTPRequest {
     }
 
     /**
-     * Close cached connections; I'm pretty sure PHP would destroy these at some
-     * point but it's nice to be able to do it ourselves
+     * Close cached connections. I'm pretty sure PHP would destroy these at some
+     * point but it's nice to be able to do it ourselves.
      */
     static function closeCachedConnections() {
         foreach (self::$conns as list($sock,$_)) {
@@ -151,7 +170,7 @@ class HTTPRequest {
     }
 
     /**
-     * Returns the original request URL provided when the request was created
+     * Returns the original request URL provided when the request was created.
      *
      * @return string
      */
@@ -160,16 +179,17 @@ class HTTPRequest {
     }
 
     /**
-     * Performs the actual HTTP request and returns the response
+     * Performs the actual HTTP request and returns the response.
      *
      * The response object's properties represent response header fields
-     * (e.g. $response->contentLength)
+     * (e.g. $response->contentLength).
      *
      * @param bool $compileOnly
      *  If true, then the request string is only compiled and not sent to the
      *  remote host.
      *
-     * @return object The PHP object representing the response
+     * @return object
+     *  The PHP object representing the response.
      */
     function makeRequest($compileOnly = false) {
         if (!empty($this->cache['request']) && !empty($this->cache['sockaddr'])) {
@@ -179,20 +199,21 @@ class HTTPRequest {
             return self::http($this->cache['sockaddr'],$this->cache['request']);
         }
 
-        // construct the socket address string used to connect to the remote host
+        // Construct the socket address string used to connect to the remote
+        // host.
         list($proto,$port) = explode(':',$this->params['protocol']);
         if (!is_null($this->params['port'])) {
             $port = $this->params['port'];
         }
         $sockaddr = "$proto://{$this->params['remote_host']}:$port";
 
-        // construct the request string
+        // Construct the request string.
         $query = "";
         if (!empty($this->params['query'])) {
             $query = '?' . http_build_query($this->params['query']);
         }
         $request = "{$this->params['request_method']} {$this->params['request_uri']}$query HTTP/1.1\r\n"
-                    . "Host: {$this->params['remote_host']}\r\n";
+            . "Host: {$this->params['remote_host']}\r\n";
         if (!empty($this->params['headers'])) {
             foreach ($this->params['headers'] as $k => $v) {
                 $request .= "$k: $v\r\n";
@@ -219,7 +240,7 @@ class HTTPRequest {
         $request .= CRLF;
         $request .= $dataBody;
 
-        // cache the socket address and request strings
+        // Cache the socket address and request strings.
         $this->cache['sockaddr'] = $sockaddr;
         $this->cache['request'] = $request;
 
@@ -228,7 +249,7 @@ class HTTPRequest {
             return new stdClass;
         }
 
-        // perform the request
+        // Perform the request.
         return self::http($sockaddr,$request);
     }
 
@@ -262,22 +283,26 @@ class HTTPRequest {
     }
 
     /**
-     * Perform a generic HTTP request
+     * Perform a generic HTTP request.
      *
-     * @param  string $sockaddr The socket connect address
-     * @param  string $request  The entire request message (headers & body)
+     * @param string $sockaddr
+     *  The socket connect address
+     * @param string $request
+     *  The entire request message (headers & body)
      *
-     * @return array A PHP object representing the response
+     * @return array
+     *  A PHP object representing the response
      */
     private static function http($sockaddr,$request) {
-        // try to load an existing connection from the remote host; since we
+        // Try to load an existing connection from the remote host. Since we
         // send keep-alives to the Web server then there is a chance the
-        // conneciton is still good
+        // connection is still good.
         $sock = false;
         $response = "";
         if (isset(self::$conns[$sockaddr])) {
             list($sock,$response) = self::$conns[$sockaddr];
-            // check to make sure the remote host didn't shutdown the connection
+            // Check to make sure the remote host didn't shutdown the
+            // connection.
             if (feof($sock)) {
                 unset(self::$conns[$sockaddr]);
                 fclose($sock);
@@ -285,10 +310,10 @@ class HTTPRequest {
             }
         }
 
-        // if we don't already have a connection, then we connect to the specified
-        // socket address
+        // If we don't already have a connection, then we connect to the
+        // specified socket address.
         if (!is_resource($sock)) {
-            // create socket connection to remote host
+            // Create socket connection to remote host.
             $sock = @stream_socket_client($sockaddr,$errno,$errmsg,HTTP_CONNECTION_TIMEOUT);
             if ($sock === false) {
                 throw new HTTPException(__METHOD__
@@ -298,31 +323,31 @@ class HTTPRequest {
             stream_set_timeout($sock,HTTP_CONNECTION_TIMEOUT);
         }
 
-        // write the request
+        // Write the request to the connection.
         fwrite($sock,$request);
 
-        // read the response until the end of an HTTP response message
+        // Read the response until the end of an HTTP response message.
         $iterator = false;
         while ($iterator === false) {
-            // attempt to read some more bytes; we consider the connection shut
+            // Attempt to read some more bytes; we consider the connection shut
             // down if we read the conventional EOF (i.e. empty read) OR if the
-            // read operation timed out
+            // read operation timed out.
             $newbytes = fread($sock,4096);
             $info = stream_get_meta_data($sock);
             if (empty($newbytes) || $info['timed_out'])
                 break;
             $response .= $newbytes;
 
-            // attempt to parse the response so far; I hope that most if not all
-            // of the message was sent at once; this would mean calls to the
-            // following method would be limited; however, some servers will
-            // sent data in small increments; to that end the following method
-            // will cache its progress in $_ until it can read a whole response
+            // Attempt to parse the response so far. I hope that most if not all
+            // of the message was sent at once. This would mean calls to the
+            // following method would be limited. However, some servers will
+            // sent data in small increments. To that end the following method
+            // will cache its progress in $_ until it can read a whole response.
             $result = self::parseHttpMessage($response,$iterator,$_);
         }
 
-        // if $iter is false then we never got a complete message (at least within
-        // the requisite timeout)
+        // If $iter is false then we never got a complete message (at least
+        // within the requisite timeout).
         if ($iterator === false) {
             fclose($sock);
             unset(self::$conns[$sockaddr]);
@@ -331,9 +356,9 @@ class HTTPRequest {
                     HTTP_EXCEPTION_CONNECTION_TIMED_OUT);
         }
 
-        // cache the socket connection and any remaining bytes from the input
+        // Cache the socket connection and any remaining bytes from the input
         // buffer (hopefully this should nearly always be empty) unless the
-        // server intends to close the connection
+        // server intends to close the connection.
         if (isset($result['connection']) && strcasecmp($result['connection'],"close") == 0) {
             fclose($sock);
             unset(self::$conns[$sockaddr]);
@@ -343,7 +368,7 @@ class HTTPRequest {
             self::$conns[$sockaddr] = array($sock,$remain === false ? "" : $remain);
         }
 
-        // map any "dashed" key names to Camel-case
+        // Map any "dashed" key names to Camel-case.
         foreach ($result as $k => $v) {
             $r = preg_replace_callback('/(-)(.)/',function($m){return strtoupper($m[2]);},$k);
             if ($r != $k) {
@@ -352,45 +377,49 @@ class HTTPRequest {
             }
         }
 
-        // parse the response into a PHP object and return it
+        // Parse the response into a PHP object and return it.
         return (object) $result;
     }
 
     /**
-     * This function parses an HTTP response message, including the response line,
-     * headers and data payload (if any). If returns an array that represents
-     * the HTTP response.
+     * This function parses an HTTP response message, including the response
+     * line, headers and data payload (if any). If returns an array that
+     * represents the HTTP response.
      *
-     * @param string  $response The HTTP response body
-     * @param integer $iterator The function will write the offset in $response after the logical
-     *                          end of the message OR 'false' if the end of the message was not reached
-     * @param array   $progress Used to speed up parsing if this is a subsequent parse attempt; this is
-     *                          used internally by the function's implementation
+     * @param string $response
+     *  The HTTP response body
+     * @param integer $iterator
+     *  The function will write the offset in $response after the logical end of
+     *  the message OR 'false' if the end of the message was not reached.
+     * @param array $progress
+     *  Used to speed up parsing if this is a subsequent parse attempt. This is
+     *  used internally by the function's implementation.
      *
-     * @return array An associative array containing the response headers, status
-     *               code, status message and data payload
+     * @return array
+     *  An associative array containing the response headers, status code,
+     *  status message and data payload.
      */
     private static function parseHttpMessage($response,&$iterator,&$progress) {
-        // check to see if we've already parsed the header fields
+        // Check to see if we've already parsed the header fields.
         if (!isset($progress['header-state'])) {
             $result = array(); // the result array
             $iterator = 0; // rolling offset into response message
 
-            // process the response line/header fields
+            // Process the response line/header fields.
             foreach (explode(CRLF,$response) as $line) {
-                // compute rolling offset into $response
+                // Compute rolling offset into $response.
                 $iterator += strlen($line) + 2;
 
-                // if we get an empty line, we have reached the end of the headers
-                // section of the HTTP response
+                // If we get an empty line, we have reached the end of the
+                // headers section of the HTTP response.
                 if (empty($line)) {
-                    // flag that we have reached the end of the headers section
+                    // Flag that we have reached the end of the headers section.
                     $progress['header-state'] = $result;
                     $progress['iterator'] = $iterator;
                     break;
                 }
 
-                // parse the first line if we haven't processed any lines yet
+                // Parse the first line if we haven't processed any lines yet.
                 if (empty($result)) {
                     if (!preg_match("/^HTTP\/1\.(?:1|0)\s+([0-9]+)\s+(.+)\s*$/i",$line,$matches)) {
                         throw new HTTPException(__METHOD__
@@ -402,7 +431,7 @@ class HTTPRequest {
                     $result['statusMessage'] = $matches[2];
                 }
 
-                // otherwise parse a header line
+                // Otherwise parse a header line.
                 else {
                     if (!preg_match("/(.+?):\s*(.+)\s*/",$line,$matches)) {
                         throw new HTTPException(__METHOD__
@@ -410,30 +439,29 @@ class HTTPRequest {
                                 HTTP_EXCEPTION_BAD_RESPONSE);
                     }
 
-                    // add the header; normalize keys to lower case values
-                    // (note: HTTP says header keys are case-insensitive)
+                    // Add the header; normalize keys to lower case values
+                    // (note: HTTP says header keys are case-insensitive).
                     $result[strtolower($matches[1])] = $matches[2];
                 }
             }
         }
         else {
-            // otherwise we already parsed the headers and can restore them
+            // Otherwise we already parsed the headers and can restore them.
             $result = $progress['header-state'];
             $iterator = $progress['iterator'];
         }
 
-        // if the header's haven't been parsed, then the response is incomplete;
-        // otherwise we can move on to reading the data payload (if any)
+        // If the header's haven't been parsed, then the response is incomplete.
+        // Otherwise we can move on to reading the data payload (if any).
         if (!isset($progress['header-state'])) {
             $iterator = false;
         }
         else {
-            // handle the data payload; I assume that no HEAD or CONNECT
+            // Handle the data payload. I assume that no HEAD or CONNECT
             // requests are made by this library (therefore I don't have to
-            // worry about not having a data payload in those cases)
+            // worry about not having a data payload in those cases).
 
-            // handle 'Transfer-Encoding: chunked' (preferred, unfortunately by
-            // serveral of the services I use...)
+            // Handle 'Transfer-Encoding: chunked'.
             if (isset($result['transfer-encoding'])
                 && strtolower($result['transfer-encoding']) == 'chunked')
             {
@@ -443,7 +471,7 @@ class HTTPRequest {
                 }
             }
 
-            // handle case where Content-Length header is set
+            // Handle case where Content-Length header is set.
             else if (isset($result['content-length'])) {
                 $contentLength = intval($result['content-length']);
                 if ($contentLength > 0) {
@@ -463,46 +491,53 @@ class HTTPRequest {
     }
 
     /**
-     * Decodes a message payload sent with 'Transfer-Encoding: chunked' option
+     * Decodes a message payload sent with 'Transfer-Encoding: chunked' option.
      *
-     * @param string  $response The complete response message
-     * @param integer $offset   The current offset into the response message; if
-     *                          the payload is incomplete, then we will set this
-     *                          to false
-     * @param array   $progress Saves the progress state for efficiency
+     * @param string $response
+     *  The complete response message
+     * @param integer $offset
+     *  The current offset into the response message. If the payload is
+     *  incomplete, then we will set this to false.
+     * @param array $progress
+     *  Saves the progress state for efficiency
      *
-     * @return string           The decoded response payload
+     * @return string
+     *  The decoded response payload.
      */
     private static function chunkedTransferDecode($message,&$offset,&$progress) {
-        // Note: the HTTP/1.1 spec (i.e. rfc2616 sec-3.6.1) details a chunk-extension
-        // syntax and trailer syntax (for additional headers); we do not handle
-        // these here
+        // Note: the HTTP/1.1 spec (i.e. rfc2616 sec-3.6.1) details a
+        // chunk-extension syntax and trailer syntax (for additional headers);
+        // we do not handle these here.
 
-        // load any values from a previous iteration of this routine
+        // Load any values from a previous iteration of this routine.
         $payload = isset($progress['payload']) ? $progress['payload'] : "";
         $stage = isset($progress['stage']) ? $progress['stage'] : 1;
 
-        // enter a loop to read data chunks
+        // Enter a loop to read data chunks.
         while (true) {
-            // restore previous context only once (I know, this is nasty! But
-            // it's quick (unfortunately PHP doesn't let me jump into a loop...)
+            // Restore previous context only once (I know, this is nasty! But
+            // it's quick (unfortunately PHP doesn't let me jump into a loop...).
             if (isset($stage)) {
                 $cpy = $stage;
                 unset($stage);
-                if ($cpy == 1)
+                if ($cpy == 1) {
                     goto one;
-                else if ($cpy == 2)
+                }
+                else if ($cpy == 2) {
                     goto two;
-                else if ($cpy == 3)
+                }
+                else if ($cpy == 3) {
                     goto three;
-                else
+                }
+                else {
                     goto four;
+                }
             }
 
         one:
-            // grab the first CRLF delimited line; this should be a
+            // Grab the first CRLF delimited line. This should be a
             // hexadecimal-encoded number representing the number of bytes to
-            // read after the CRLF
+            // read after the CRLF.
             $i = strpos($message,CRLF,$offset);
             if ($i === false) {
                 $stage = 1;
@@ -512,43 +547,43 @@ class HTTPRequest {
             $progress['bcount'] = hexdec(substr($message,$offset,$hlen));
             $offset += $hlen + 2; // seek length of hex string plus CRLF
             if ($progress['bcount'] == 0) {
-                // the server should have sent a zero length chunk to indicate
-                // that it has finished sending the chunked data payload
+                // The server should have sent a zero length chunk to indicate
+                // that it has finished sending the chunked data payload.
                 $stage = 4;
                 break;
             }
 
         two:
-            // grab the chunk data
+            // Grab the chunk data.
             $s = substr($message,$offset,$progress['bcount']);
             if ($s === false || strlen($s) < $progress['bcount']) {
                 $stage = 2;
                 break; // not enough bytes
             }
             $payload .= $s;
-            // seek ahead to next chunk header
+            // Seek ahead to next chunk header.
             $offset += $progress['bcount'] + 2; // +2 bytes for CRLF
 
         three:
-            // verify that a CLRF sequence was found after the chunk data
+            // Verify that a CLRF sequence was found after the chunk data.
             if (($test = substr($message,$offset-2,2)) != CRLF) {
                 if ($test === false) {
                     $stage = 3;
                     break; // not enough bytes
                 }
 
-                // otherwise the payload was not formatted correctly
+                // Otherwise the payload was not formatted correctly.
                 throw new Exception(__METHOD__.": chunked transfer not encoded correctly",
                     HTTP_EXCEPTION_BAD_RESPONSE);
             }
         }
 
     four:
-        // if $stage < 4, then an error occurred somewhere in stages 1-3 and we
-        // need to quit; otherwise we verify the trailing CRLF sequence
+        // If $stage < 4, then an error occurred somewhere in stages 1-3 and we
+        // need to quit. Ttherwise we verify the trailing CRLF sequence.
         if ($stage < 4 || substr($message,$offset,2) != CRLF) {
-            // save state in progress variable so we can restore it on the next
-            // call (note: $offset should be restored by the caller)
+            // Save state in progress variable so we can restore it on the next
+            // call (note: $offset should be restored by the caller).
             $progress['payload'] = $payload;
             $progress['iterator'] = $offset;
             $progress['stage'] = isset($stage) ? $stage : 4;
