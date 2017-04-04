@@ -1,6 +1,7 @@
-oauth2 PHP library - version 1.0.0
+oauth2 PHP library - version 2.0.0
 --------------------------------------------------------------------------------
-This repository contains a PHP library that provides OAuth2 functionality.
+This repository provides a PHP composer package that provides OAuth2
+functionality.
 
 Primary authors:
     Roger Gee <roger.gee@tulsalibrary.org>
@@ -8,7 +9,16 @@ Primary authors:
 Other authors:
 
 --------------------------------------------------------------------------------
+Installation
+
+Install this library via composer:
+
+    $ composer require tccl/oauth2
+
+--------------------------------------------------------------------------------
 Modules in this library:
 
-    oauth2 - handles OAuth2 functionality
-    http   - simple HTTP client implementation
+    \TCCL\OAuth2\OAuth2
+    \TCCL\OAuth2\ClientCredentials
+    \TCCL\OAuth2\AuthCode
+    \TCCL\OAuth2\DrupalAuthCode

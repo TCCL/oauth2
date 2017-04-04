@@ -1,46 +1,33 @@
 <?php
 
 /**
- * This file provides a simple HTTP/HTTPS client implementation for use by the
- * OAuth2 module.
+ * HTTPRequest.php
  *
- * @package oauth2
+ * This file is a part of tccl/oauth2.
  */
 
-/**
- * Define an exception type and exception code constants for exceptions
- * generated in this module that we potentially want users to handle.
- */
-class HTTPException extends Exception {
-    function __construct($message,$code) {
-        // Forward arguments to parent class.
-        call_user_func('parent::__construct',"in function $message",$code);
-    }
-}
-define('HTTP_EXCEPTION_CANNOT_CONNECT',101);
-define('HTTP_EXCEPTION_BAD_RESPONSE',102);
-define('HTTP_EXCEPTION_CONNECTION_TIMED_OUT',103);
+namespace TCCL\OAuth2;
 
-/**
- * Define protocol kinds and ports along with HTTP methods.
- */
-define('HTTP','tcp:80');
-define('HTTPS','ssl:443');
-define('HTTP_GET','GET');
-define('HTTP_POST','POST');
-define('HTTP_PUT','PUT');
-define('HTTP_DELETE','DELETE');
-
-/**
- * Misc. defines
- */
-define('CRLF',"\r\n");
-define('HTTP_CONNECTION_TIMEOUT',60);
+use stdClass;
+use Exception;
 
 /**
  * HTTPRequest represents and performs an HTTP request.
  */
 class HTTPRequest {
+    /**
+     * Define protocol kinds and ports along with HTTP methods.
+     */
+    const HTTP = 'tcp:80';
+    const HTTPS = 'ssl:443';
+    const HTTP_GET = 'GET';
+    const HTTP_POST = 'POST';
+    const HTTP_PUT = 'PUT';
+    const HTTP_DELETE = 'DELETE';
+
+    const CRLF = "\r\n";
+    const HTTP_CONNECTION_TIMEOUT = 60;
+
     /**
      * The original url string
      *
@@ -77,7 +64,7 @@ class HTTPRequest {
         'port' => null,
 
         /* Users can provide these themselves. */
-        'request_method' => HTTP_POST,
+        'request_method' => self::HTTP_POST,
         'headers' => array(
             'Connection' => 'keep-alive',
             'User-Agent' => 'lib-oauth2-client/1.0'
@@ -135,13 +122,14 @@ class HTTPRequest {
             throw new Exception(__METHOD__.": url must specify protocol");
         }
         if (strtolower($uri['scheme']) == 'https') {
-            $this->params['protocol'] = HTTPS;
+            $this->params['protocol'] = self::HTTPS;
         }
         else if ($secure) {
-            throw new Exception(__METHOD__.": url scheme must be https by user option in '$url'");
+            throw new Exception(
+                __METHOD__.": url scheme must be https by user option in '$url'");
         }
         else {
-            $this->params['protocol'] = HTTP;
+            $this->params['protocol'] = self::HTTP;
         }
         $this->params['remote_host'] = $uri['host'];
         $this->params['request_uri'] = $uri['path'];
@@ -314,13 +302,17 @@ class HTTPRequest {
         // specified socket address.
         if (!is_resource($sock)) {
             // Create socket connection to remote host.
-            $sock = @stream_socket_client($sockaddr,$errno,$errmsg,HTTP_CONNECTION_TIMEOUT);
+            $sock = @stream_socket_client(
+                $sockaddr,
+                $errno,
+                $errmsg,
+                self::HTTP_CONNECTION_TIMEOUT);
             if ($sock === false) {
-                throw new HTTPException(__METHOD__
-                    .": failed to open stream socket to $sockaddr: $errmsg",
-                    HTTP_EXCEPTION_CANNOT_CONNECT);
+                throw new HTTPException(
+                    __METHOD__.": failed to open stream socket to $sockaddr: $errmsg",
+                    HTTPException::HTTP_EXCEPTION_CANNOT_CONNECT);
             }
-            stream_set_timeout($sock,HTTP_CONNECTION_TIMEOUT);
+            stream_set_timeout($sock,self::HTTP_CONNECTION_TIMEOUT);
         }
 
         // Write the request to the connection.
@@ -351,9 +343,10 @@ class HTTPRequest {
         if ($iterator === false) {
             fclose($sock);
             unset(self::$conns[$sockaddr]);
-            throw new HTTPException(__METHOD__.": the remote host either took "
-                . "too long to respond or shut down the connection",
-                    HTTP_EXCEPTION_CONNECTION_TIMED_OUT);
+            throw new HTTPException(
+                __METHOD__.": the remote host either took "
+                  . "too long to respond or shut down the connection",
+                HTTPException::HTTP_EXCEPTION_CONNECTION_TIMED_OUT);
         }
 
         // Cache the socket connection and any remaining bytes from the input
@@ -422,9 +415,9 @@ class HTTPRequest {
                 // Parse the first line if we haven't processed any lines yet.
                 if (empty($result)) {
                     if (!preg_match("/^HTTP\/1\.(?:1|0)\s+([0-9]+)\s+(.+)\s*$/i",$line,$matches)) {
-                        throw new HTTPException(__METHOD__
-                                .": response line was incorrectly formatted: '$line'",
-                                HTTP_EXCEPTION_BAD_RESPONSE);
+                        throw new HTTPException(
+                            __METHOD__.": response line was incorrectly formatted: '$line'",
+                            HTTPException::HTTP_EXCEPTION_BAD_RESPONSE);
                     }
 
                     $result['statusCode'] = $matches[1];
@@ -434,9 +427,9 @@ class HTTPRequest {
                 // Otherwise parse a header line.
                 else {
                     if (!preg_match("/(.+?):\s*(.+)\s*/",$line,$matches)) {
-                        throw new HTTPException(__METHOD__
-                                .": bad header field in response: '$line'",
-                                HTTP_EXCEPTION_BAD_RESPONSE);
+                        throw new HTTPException(
+                            __METHOD__.": bad header field in response: '$line'",
+                            HTTPException::HTTP_EXCEPTION_BAD_RESPONSE);
                     }
 
                     // Add the header; normalize keys to lower case values
@@ -573,8 +566,9 @@ class HTTPRequest {
                 }
 
                 // Otherwise the payload was not formatted correctly.
-                throw new Exception(__METHOD__.": chunked transfer not encoded correctly",
-                    HTTP_EXCEPTION_BAD_RESPONSE);
+                throw new Exception(
+                    __METHOD__.": chunked transfer not encoded correctly",
+                    HTTPException::HTTP_EXCEPTION_BAD_RESPONSE);
             }
         }
 
