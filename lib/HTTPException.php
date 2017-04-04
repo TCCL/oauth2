@@ -8,13 +8,16 @@
 
 namespace TCCL\OAuth2;
 
+use Exception;
+
 /**
  * Define an exception type and exception code constants for exceptions
  * generated in this module that we potentially want users to handle.
  */
 class HTTPException extends Exception {
     /**
-     * Enumerate the various exception codes.
+     * Enumerate the various exception codes. We'll want users to be able to
+     * identify most errors.
      */
     const HTTP_EXCEPTION_CANNOT_CONNECT = 101;
     const HTTP_EXCEPTION_BAD_RESPONSE = 102;

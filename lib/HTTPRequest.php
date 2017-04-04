@@ -110,7 +110,7 @@ class HTTPRequest {
         // cleanly. We only need to do this once for all instances.
         if (!self::$register) {
             self::$register = true;
-            register_shutdown_function("HTTPRequest::closeCachedConnections");
+            register_shutdown_function('TCCL\OAuth2\HTTPRequest::closeCachedConnections');
         }
 
         // Remember original url string.
@@ -223,9 +223,9 @@ class HTTPRequest {
             }
         }
         if (!empty($dataBody)) {
-            $request .= "Content-Length: " . strlen($dataBody) . CRLF;
+            $request .= "Content-Length: " . strlen($dataBody) . self::CRLF;
         }
-        $request .= CRLF;
+        $request .= self::CRLF;
         $request .= $dataBody;
 
         // Cache the socket address and request strings.
@@ -399,7 +399,7 @@ class HTTPRequest {
             $iterator = 0; // rolling offset into response message
 
             // Process the response line/header fields.
-            foreach (explode(CRLF,$response) as $line) {
+            foreach (explode(self::CRLF,$response) as $line) {
                 // Compute rolling offset into $response.
                 $iterator += strlen($line) + 2;
 
@@ -531,7 +531,7 @@ class HTTPRequest {
             // Grab the first CRLF delimited line. This should be a
             // hexadecimal-encoded number representing the number of bytes to
             // read after the CRLF.
-            $i = strpos($message,CRLF,$offset);
+            $i = strpos($message,self::CRLF,$offset);
             if ($i === false) {
                 $stage = 1;
                 break; // incomplete chunk size line
@@ -559,7 +559,7 @@ class HTTPRequest {
 
         three:
             // Verify that a CLRF sequence was found after the chunk data.
-            if (($test = substr($message,$offset-2,2)) != CRLF) {
+            if (($test = substr($message,$offset-2,2)) != self::CRLF) {
                 if ($test === false) {
                     $stage = 3;
                     break; // not enough bytes
@@ -575,7 +575,7 @@ class HTTPRequest {
     four:
         // If $stage < 4, then an error occurred somewhere in stages 1-3 and we
         // need to quit. Ttherwise we verify the trailing CRLF sequence.
-        if ($stage < 4 || substr($message,$offset,2) != CRLF) {
+        if ($stage < 4 || substr($message,$offset,2) != self::CRLF) {
             // Save state in progress variable so we can restore it on the next
             // call (note: $offset should be restored by the caller).
             $progress['payload'] = $payload;

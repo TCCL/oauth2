@@ -8,6 +8,8 @@
 
 namespace TCCL\OAuth2;
 
+use Exception;
+
 /**
  * Define a specialized exception type to support exceptions that we want users
  * to potentially handle.

@@ -8,6 +8,8 @@
 
 namespace TCCL\OAuth2;
 
+use Exception;
+
 /**
  * OAuth2 provides a base class that represents the OAuth2 client-side state. It
  * is used to implement the specific authorization grants.
@@ -311,7 +313,7 @@ abstract class OAuth2 {
 
         // Set parameters for the http request.
         $httpParams = array(
-            'request_method' => HTTP_POST,
+            'request_method' => HTTPRequest::HTTP_POST,
             'data' => $data + array(
                 'grant_type' => $this->getFlowId(),
                 'scope' => $this->params['scope']
