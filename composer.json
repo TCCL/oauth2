@@ -1,0 +1,14 @@
+{
+    "name": "tccl/oauth2",
+    "description": "A simple implementation of OAuth2 authorization flows",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Roger Gee",
+            "email": "roger.gee@tulsalibrary.org"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
