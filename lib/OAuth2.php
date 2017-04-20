@@ -318,48 +318,12 @@ abstract class OAuth2 {
      *  The requested token structure
      */
     final protected function requestToken() {
-        // Set parameters for the http request.
-        $httpParams = array(
-            'request_method' => HTTPRequest::HTTP_POST,
-            'data' => array(
-                'grant_type' => $this->getFlowId(),
-            ),
-            'headers' => array(
-                'Content-type' => 'application/x-www-form-urlencoded',
-            ),
-        );
+        // Get request info for token request.
+        $httpParams = $this->prepareTokenRequest(
+            $this->getFlowId(),
+            $this->params['scope']);
 
-        // Append any extra request headers.
-        if (is_array($this->params['token_request_headers'])) {
-            $httpParams['headers'] += $this->params['token_request_headers'];
-        }
-
-        // Append any extra data parameters to include in the request body.
-        if (is_array($this->params['token_request_data'])) {
-            $httpParams['data'] += $this->params['token_request_data'];
-        }
-
-        // Include scope if specified.
-        if (isset($this->params['scope'])) {
-            $httpParams['data']['scope'] = $this->params['scope'];
-        }
-
-        // OAuth2 provides two mechanisms for encoding the client_id and
-        // client_secret: using HTTP basic auth or adding them to the request
-        // body. This is configured in the parameters used when creating an
-        // OAuth2 instance.
-        if ($this->params['credentials_encoding'] == 'header') {
-            $creds = "{$this->params['client_id']}:{$this->params['client_secret']}";
-            $auth = base64_encode($creds);
-            $httpParams['headers']['Authorization'] = "Basic $auth";
-        }
-        else if ($this->params['credentials_encoding'] == 'body') {
-            $httpParams['data']['client_id'] = $this->params['client_id'];
-            $httpParams['data']['client_secret'] = $this->params['client_secret'];
-        }
-
-        // Make the http request and return the response as a PHP array
-        // (decoded) from JSON.
+        // Make the http request.
         try {
             $request = new HTTPRequest($this->params['token_endpoint'],$httpParams);
             $response = $request->makeRequest();
@@ -414,6 +378,61 @@ abstract class OAuth2 {
     }
 
     /**
+     * Prepare parameters for HTTP token request.
+     *
+     * @param string $grantType
+     *  The OAuth2 grant type to include in the request body.
+     * @param string $scope
+     *  Scope parameter (leave empty to omit)
+     *
+     * @return array
+     *  An array of HTTPRequest parameters.
+     */
+    private function prepareTokenRequest($grantType,$scope = null) {
+        // Set parameters for the http request.
+        $httpParams = array(
+            'request_method' => HTTPRequest::HTTP_POST,
+            'data' => array(
+                'grant_type' => $grantType,
+            ),
+            'headers' => array(
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ),
+        );
+
+        // Optionally include scope.
+        if ($scope) {
+            $httpParams['data']['scope'] = $scope;
+        }
+
+        // Append any extra request headers.
+        if (is_array($this->params['token_request_headers'])) {
+            $httpParams['headers'] += $this->params['token_request_headers'];
+        }
+
+        // Append any extra data parameters to include in the request body.
+        if (is_array($this->params['token_request_data'])) {
+            $httpParams['data'] += $this->params['token_request_data'];
+        }
+
+        // OAuth2 provides two mechanisms for encoding the client_id and
+        // client_secret: using HTTP basic auth or adding them to the request
+        // body. This is configured in the parameters used when creating an
+        // OAuth2 instance.
+        if ($this->params['credentials_encoding'] == 'header') {
+            $creds = "{$this->params['client_id']}:{$this->params['client_secret']}";
+            $auth = base64_encode($creds);
+            $httpParams['headers']['Authorization'] = "Basic $auth";
+        }
+        else if ($this->params['credentials_encoding'] == 'body') {
+            $httpParams['data']['client_id'] = $this->params['client_id'];
+            $httpParams['data']['client_secret'] = $this->params['client_secret'];
+        }
+
+        return $httpParams;
+    }
+
+    /**
      * The default cache handler that employs user session to record tokens.
      *
      * @param string $key
@@ -424,7 +443,7 @@ abstract class OAuth2 {
      * @return mixed
      *  Returns the cache value if no value was given
      */
-    private static function defaultCacheHandler(/* $key, [$value] */) {
+    static private function defaultCacheHandler(/* $key, [$value] */) {
         // By default we will store the value in the user session.
         list($key,$value) = func_get_args() + array('','');
 
@@ -436,8 +455,9 @@ abstract class OAuth2 {
 
         // Lookup and return the cached value if no store value was specified.
         if (empty($value)) {
-            if (!array_key_exists($key,$_SESSION))
+            if (!array_key_exists($key,$_SESSION)) {
                 return false;
+            }
             return $_SESSION[$key];
         }
 
