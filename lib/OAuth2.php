@@ -51,6 +51,11 @@ abstract class OAuth2 {
      *        "level1/level2/.../levelN/id"
      *      If the key is not found then the function should return either
      *      'false' or an empty array.
+     *  - credentials_encoding
+     *      Determines how client credentials are encoded when fetching an
+     *      access token. A value of 'header' will imply using basic
+     *      authentication to encode credentials in a request header. A value of
+     *      'body' will encode parameters in the request body.
      *
      * @var array
      */
@@ -61,7 +66,8 @@ abstract class OAuth2 {
         'auth_endpoint' => null,
         'redirect_uri' => null,
         'scope' => null,
-        'token_cache_callback' => 'self::defaultCacheHandler'
+        'token_cache_callback' => 'self::defaultCacheHandler',
+        'credentials_encoding' => 'header',
     );
 
     /**
@@ -306,11 +312,6 @@ abstract class OAuth2 {
      *  The requested token structure
      */
     final protected function requestToken(array $data) {
-        // Produce the authorization string. We only support using the HTTP
-        // basic authentication scheme and WILL NOT send the client credentials
-        // in the request body.
-        $auth = base64_encode("{$this->params['client_id']}:{$this->params['client_secret']}");
-
         // Set parameters for the http request.
         $httpParams = array(
             'request_method' => HTTPRequest::HTTP_POST,
@@ -320,9 +321,22 @@ abstract class OAuth2 {
             ),
             'headers' => array(
                 'Content-type' => 'application/x-www-form-urlencoded',
-                'Authorization' => "Basic $auth"
             ),
         );
+
+        // OAuth2 provides two mechanisms for encoding the client_id and
+        // client_secret: using HTTP basic auth or adding them to the request
+        // body. This is configured in the parameters used when creating an
+        // OAuth2 instance.
+        if ($this->params['credentials_encoding'] == 'header') {
+            $creds = "{$this->params['client_id']}:{$this->params['client_secret']}";
+            $auth = base64_encode($creds);
+            $httpParams['headers']['Authorization'] = "Basic $auth";
+        }
+        else if ($this->params['credentials_encoding'] == 'body') {
+            $httpParams['data']['client_id'] = $this->params['client_id'];
+            $httpParams['data']['client_secret'] = $this->params['client_secret'];
+        }
 
         // Make the http request and return the response as a PHP array
         // (decoded) from JSON.
