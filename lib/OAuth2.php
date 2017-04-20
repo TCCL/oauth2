@@ -59,10 +59,13 @@ abstract class OAuth2 {
      *  - token_request_headers
      *      An array of key-value pairs representing any extra headers to send
      *      in the token request.
+     *  - token_request_data
+     *      An array representing any extra data parameters to include in the
+     *      token request body data.
      *
      * @var array
      */
-    private $params = array(
+    protected $params = array(
         'client_id' => null,
         'client_secret' => null,
         'token_endpoint' => null,
@@ -72,6 +75,7 @@ abstract class OAuth2 {
         'token_cache_callback' => 'self::defaultCacheHandler',
         'credentials_encoding' => 'header',
         'token_request_headers' => null,
+        'token_request_data' => null,
     );
 
     /**
@@ -307,21 +311,18 @@ abstract class OAuth2 {
     }
 
     /**
-     * This function implements the generic request procedure for an access token
-     *
-     * @param array $data
-     *  The data payload to include in the request
+     * This function implements the generic request procedure for an access
+     * token.
      *
      * @return array
      *  The requested token structure
      */
-    final protected function requestToken(array $data) {
+    final protected function requestToken() {
         // Set parameters for the http request.
         $httpParams = array(
             'request_method' => HTTPRequest::HTTP_POST,
-            'data' => $data + array(
+            'data' => array(
                 'grant_type' => $this->getFlowId(),
-                'scope' => $this->params['scope']
             ),
             'headers' => array(
                 'Content-type' => 'application/x-www-form-urlencoded',
@@ -331,6 +332,16 @@ abstract class OAuth2 {
         // Append any extra request headers.
         if (is_array($this->params['token_request_headers'])) {
             $httpParams['headers'] += $this->params['token_request_headers'];
+        }
+
+        // Append any extra data parameters to include in the request body.
+        if (is_array($this->params['token_request_data'])) {
+            $httpParams['data'] += $this->params['token_request_data'];
+        }
+
+        // Include scope if specified.
+        if (isset($this->params['scope'])) {
+            $httpParams['data']['scope'] = $this->params['scope'];
         }
 
         // OAuth2 provides two mechanisms for encoding the client_id and
@@ -360,7 +371,7 @@ abstract class OAuth2 {
 
         // Throw exception if response was not 200.
         if ($response->statusCode != 200) {
-            $message = __METHOD__ . ': remote server did not grant access token'
+            $message = __METHOD__ . ': remote server did not grant access token: '
                 . "got $response->statusCode";
             $ex = new OAuth2Exception($message,OAuth2Exception::OAUTH_EXCEPTION_FAILED_REQUEST);
             $ex->errorData = json_decode($response->data);
@@ -379,15 +390,12 @@ abstract class OAuth2 {
     /**
      * Derived classes should implement this method to request a new access
      * token in some implementation-specific way. The implementation should
-     * always call getToken() at some point to perform the actual request.
-     *
-     * @param array $params
-     *  An associative array containing the oauth2 parameters.
+     * always call requestToken() at some point to perform the actual request.
      *
      * @return array
      *  The access token structure
      */
-    abstract protected function getTokenNew(array $params);
+    abstract protected function getTokenNew();
 
     /**
      * Gets a new access token based on the current refresh token.

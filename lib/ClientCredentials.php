@@ -38,15 +38,11 @@ class ClientCredentials extends OAuth2 {
      * Implements getTokenNew() to request an access token from the remote
      * server using the 'client_credentials' authorization flow.
      *
-     * @param array $params
-     *  The OAuth2 parameters (no extra parameters are required for this
-     *  implementation).
-     *
      * @return array
      *  The access token structure
      */
-    protected function getTokenNew(array $params) {
+    protected function getTokenNew() {
         // This is really simple: just do a request.
-        return $this->requestToken(array());
+        return $this->requestToken();
     }
 }

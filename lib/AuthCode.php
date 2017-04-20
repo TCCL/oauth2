@@ -78,13 +78,10 @@ class AuthCode extends OAuth2 {
      * 	3. Request an access token (and cache it), then redirect back to the
      * 	   original page.
      *
-     * @param array $params
-     *  The provided OAuth2 parameters
-     *
      * @return array
      *  The access token structure
      */
-    protected function getTokenNew(array $params) {
+    protected function getTokenNew() {
         $key = $this->getSessionKey();
 
         // If $_GET[code] is defined then we have completed step 2 of three
@@ -96,16 +93,18 @@ class AuthCode extends OAuth2 {
             // redirect_uri value in the token request to perform a final
             // redirect to clean up the user-agent's url heading.
             if (!array_key_exists('state',$_REQUEST)) {
-                throw new OAuth2Exception(__METHOD__.": no state parameter",
-                    OAUTH_EXCEPTION_BAD_RESPONSE);
+                throw new OAuth2Exception(
+                    __METHOD__.": no state parameter",
+                    OAuth2Exception::OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $state = $_REQUEST['state'];
             if (!isset($_SESSION[$key]['redirect'][$state])
                 || !isset($_SESSION[$key]['redirect']['state'])
                 || $_SESSION[$key]['redirect']['state'] != $state)
             {
-                throw new OAuth2Exception(__METHOD__.": invalid state parameter",
-                    OAUTH_EXCEPTION_BAD_RESPONSE);
+                throw new OAuth2Exception(
+                    __METHOD__.": invalid state parameter",
+                    OAuth2Exception::OAUTH_EXCEPTION_BAD_RESPONSE);
             }
             $uri = $_SESSION[$key]['redirect'][$state];
             unset($_SESSION[$key]['redirect']); // cleanup session
@@ -113,13 +112,11 @@ class AuthCode extends OAuth2 {
             // Prepare the data parameters we will include in the POST request
             // for the access token. These are combined with the default values
             // that requestToken() already handles.
-            $data = array(
-                'code' => $_GET['code'],
-                'redirect_uri' => $uri,
-            );
+            $this->params['token_request_data']['code'] = $_GET['code'];
+            $this->params['token_request_data']['redirect_uri'] = $uri;
 
             // Request the access token.
-            $tok = $this->requestToken($data);
+            $tok = $this->requestToken();
 
             // Since the redirect will terminate the script, we must save the
             // token to the cache before the script terminates.
@@ -135,8 +132,8 @@ class AuthCode extends OAuth2 {
             }
 
             // Redirect back to the original url (from the user session) to
-            // complete the flow. We do this so to remove any query parameters
-            // that were introduced by the remote server.
+            // complete the flow. We do this to remove any query parameters that
+            // were introduced by the remote server.
             $this->redirect($uri);
             exit; // just in case
 
@@ -150,19 +147,19 @@ class AuthCode extends OAuth2 {
         $state = md5(uniqid(rand(),true));
 
         // Obtain redirect_uri parameter for remote server.
-        $uri = $params['redirect_uri'];
+        $uri = $this->params['redirect_uri'];
 
         // Generate the URI to which we will redirect the user-agent.
         $queryParams = array(
             'response_type' => 'code',
-            'client_id' => $params['client_id'],
+            'client_id' => $this->params['client_id'],
             'redirect_uri' => $uri,
             'state' => $state,
         );
         if (!empty($params['scope'])) {
-            $queryParams['scope'] = $params['scope'];
+            $queryParams['scope'] = $this->params['scope'];
         }
-        $authUri = $params['auth_endpoint'] . '?'
+        $authUri = $this->params['auth_endpoint'] . '?'
             . http_build_query($queryParams);
 
         // Save the redirect URI in the session alongside the state parameter.
