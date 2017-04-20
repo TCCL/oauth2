@@ -335,11 +335,11 @@ abstract class OAuth2 {
                 OAuth2Exception::OAUTH_EXCEPTION_BAD_REQUEST);
         }
         if ($response->statusCode != 200) {
-            $errorData = json_decode($response->data);
-            throw new OAuth2Exception(
-                __METHOD__.": remote server did not grant access token: "
-                  . "got $response->statusCode: $errorData->description",
-                OAuth2Exception::OAUTH_EXCEPTION_FAILED_REQUEST);
+            $message = __METHOD__ . ': remote server did not grant access token'
+                . "got $response->statusCode";
+            $ex = new OAuth2Exception($message,OAuth2Exception::OAUTH_EXCEPTION_FAILED_REQUEST);
+            $ex->errorData = json_decode($response->data);
+            throw $ex;
         }
 
         // Decode the response payload as a PHP array.

@@ -25,6 +25,14 @@ class OAuth2Exception extends Exception {
     const OAUTH_EXCEPTION_BAD_RESPONSE = 104;
 
     /**
+     * The error payload parsed from the HTTP request, or null/false if no error
+     * data was available or could be parsed.
+     *
+     * @var object
+     */
+    public $errorData;
+
+    /**
      * Creates a new OAuth2Exception instance.
      */
     function __construct($message,$code) {
