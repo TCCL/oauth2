@@ -67,7 +67,7 @@ class HTTPRequest {
         'request_method' => self::HTTP_POST,
         'headers' => array(
             'Connection' => 'keep-alive',
-            'User-Agent' => 'lib-oauth2-client/1.0'
+            'User-Agent' => 'lib-oauth2-client/2.1.0'
         ),
         'data' => null,
         'query' => null

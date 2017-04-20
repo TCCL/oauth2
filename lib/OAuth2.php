@@ -56,6 +56,9 @@ abstract class OAuth2 {
      *      access token. A value of 'header' will imply using basic
      *      authentication to encode credentials in a request header. A value of
      *      'body' will encode parameters in the request body.
+     *  - token_request_headers
+     *      An array of key-value pairs representing any extra headers to send
+     *      in the token request.
      *
      * @var array
      */
@@ -68,6 +71,7 @@ abstract class OAuth2 {
         'scope' => null,
         'token_cache_callback' => 'self::defaultCacheHandler',
         'credentials_encoding' => 'header',
+        'token_request_headers' => null,
     );
 
     /**
@@ -324,6 +328,11 @@ abstract class OAuth2 {
             ),
         );
 
+        // Append any extra request headers.
+        if (is_array($this->params['token_request_headers'])) {
+            $httpParams['headers'] += $this->params['token_request_headers'];
+        }
+
         // OAuth2 provides two mechanisms for encoding the client_id and
         // client_secret: using HTTP basic auth or adding them to the request
         // body. This is configured in the parameters used when creating an
@@ -348,6 +357,8 @@ abstract class OAuth2 {
                 $e->getMessage(),
                 OAuth2Exception::OAUTH_EXCEPTION_BAD_REQUEST);
         }
+
+        // Throw exception if response was not 200.
         if ($response->statusCode != 200) {
             $message = __METHOD__ . ': remote server did not grant access token'
                 . "got $response->statusCode";
