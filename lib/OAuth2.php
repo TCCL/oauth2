@@ -374,7 +374,41 @@ abstract class OAuth2 {
             throw new Exception(__METHOD__.": access refresh token was not specified");
         }
 
-        // TODO: implement refresh token functionality...
+        // Get HTTP request parameters for fetching access token.
+        $data = array(
+            'refresh_token' => $this->token['refresh_token'],
+        );
+        $httpParams = $this->prepareTokenRequest(
+            'refresh_token',
+            isset($this->token['scope']) ? $this->token['scope'] : null,
+            $data);
+
+        // Make the http request.
+        try {
+            $request = new HTTPRequest($this->params['token_endpoint'],$httpParams);
+            $response = $request->makeRequest();
+        } catch (Exception $e) {
+            throw new OAuth2Exception(
+                $e->getMessage(),
+                OAuth2Exception::OAUTH_EXCEPTION_BAD_REQUEST);
+        }
+
+        // Throw exception if response was not 200.
+        if ($response->statusCode != 200) {
+            $message = __METHOD__ . ': remote server did not refresh access token: '
+                . "got $response->statusCode";
+            $ex = new OAuth2Exception($message,OAuth2Exception::OAUTH_EXCEPTION_FAILED_REQUEST);
+            $ex->errorData = json_decode($response->data);
+            throw $ex;
+        }
+
+        // Decode the response payload as a PHP array.
+        $tok = json_decode($response->data,true);
+
+        // Calculate the token's expiration time.
+        $tok['expiration_time'] = $_SERVER['REQUEST_TIME'] + $tok['expires_in'];
+
+        return $tok;
     }
 
     /**
@@ -384,11 +418,13 @@ abstract class OAuth2 {
      *  The OAuth2 grant type to include in the request body.
      * @param string $scope
      *  Scope parameter (leave empty to omit)
+     * @param array $data
+     *  Any extra
      *
      * @return array
      *  An array of HTTPRequest parameters.
      */
-    private function prepareTokenRequest($grantType,$scope = null) {
+    private function prepareTokenRequest($grantType,$scope = null,$data = null) {
         // Set parameters for the http request.
         $httpParams = array(
             'request_method' => HTTPRequest::HTTP_POST,
@@ -413,6 +449,9 @@ abstract class OAuth2 {
         // Append any extra data parameters to include in the request body.
         if (is_array($this->params['token_request_data'])) {
             $httpParams['data'] += $this->params['token_request_data'];
+        }
+        if (is_array($data)) {
+            $httpParams['data'] += $data;
         }
 
         // OAuth2 provides two mechanisms for encoding the client_id and
