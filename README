@@ -1,9 +1,11 @@
-oauth2 PHP library - version 2.1.0
+oauth2 PHP library - version 2.2.0
 --------------------------------------------------------------------------------
 This repository provides a PHP composer package that provides OAuth2
-functionality.
+functionality. Currently the implementation supports the following OAuth2
+authorization grants: 'authorization_code' and 'client_credentials'.
 
 Primary authors:
+
     Roger Gee <roger.gee@tulsalibrary.org>
 
 Other authors:
@@ -16,9 +18,112 @@ Install this library via composer:
     $ composer require tccl/oauth2
 
 --------------------------------------------------------------------------------
+Basic Usage
+
+The library provides a subclass of TCCL\OAuth2\OAuth2 for each grant type it
+implements.
+
+Every constructor takes a parameter array that configures the instance. However
+the parameters to a subclass constructor differ from subclass to subclass. For
+the ClientCredentials subclass, you just need to pass the access token endpoint
+and a parameter array containing at least the client_id and client_secret:
+
+    <?php
+
+    $url = 'https://host.tld/api/oauth2/token';
+    $params = array(
+        'client_id' => 'never_say_never',
+        'client_secret' => 'not ever telling (i.e. never telling)',
+    );
+    $caller = new \TCCL\OAuth2\ClientCredentials($url,$params);
+
+While you can fetch an access token explicitly, it is not required because the
+library will do this transparently upon your first call.
+
+    $url = 'https://host.tld/api/fuzzy/wuzzy';
+    $response = $caller->apiCall($url,'GET',['type' => 'bear']);
+
+The response contains the full HTTP response message as a PHP stdClass
+object. The properties are the HTTP headers plus 'statusCode' for the response
+code and 'data' for the payload.
+
+    if ($response->statusCode != 200 || $response->contentType != 'application/json') {
+        // fail miserably...
+    }
+
+    $obj = json_decode($response->data);
+    echo "Found $obj->count fuzzy and wuzzy bears.\n";
+    for ($i = 0;$i < $obj->count;++$i) {
+        if ($obj->entities[$i]->hasHair == 'true') {
+            die("liars!");
+        }
+    }
+
+It's worth noting that the HTTP header names are transformed into valid variable
+names so they can exist as properties. All dashes are eliminated and the
+character following a dash is forced to upper-case. For example:
+
+    'Content-Type' => 'contentType'
+    'Content-type' => 'contentType'
+--------------------------------------------------------------------------------
+HTTP Connections
+
+The library includes a simple HTTP client library to perform HTTP requests. This
+library is very basic but supports persistent connections and chunked transfer
+encodings.
+
+The library will employ stream_socket_client() to do the TCP connections. This
+is included with basic stream support in PHP. However you will need a PHP
+compiled with openssl support to use the encrypted transports.
+
+The HTTP client module will attempt to cache persistent connections. This way
+multiple requests can be sent over existing connections to avoid reconnect
+delays.
+--------------------------------------------------------------------------------
+PHP Session Support/Token Caching
+
+You PHP will need to include session support since the functionality will use
+the PHP session to cache access tokens and other intermediate state
+information. This is useful for the Authorization Code grant type but also for
+when this library is used from PHP CLI.
+
+If you are using the Authorization Code grant, you should initialize a session
+(i.e. call session_start()). The functionality will use the session to store the
+state information for the redirect flow. This is important to verify responses
+from the authorization server, as well as saving redirect information.
+
+Currently there is no way to customize the Authorization Code grant cache short
+of providing a custom session handler.
+
+The library can be configured to use a custom access token cache if the
+'token_cache_callback' field is specified in the OAuth2 constructor parameters.
+This doesn't have to use the PHP session if desired. This callable will take two
+parameters: key and value, which represent the key-value pair to write to the
+custom token cache.
+
+The default token cache uses the PHP session (if it's been started). If you are
+using PHP CLI to implement a headless client, then you should start a custom
+session that corresponds to your application. For example:
+
+    <?php
+
+    session_id('my-app');
+    session_start();
+
+    $caller = new ClientCredentials(/* ... */);
+
+In this way, your application can benefit from using a cached token on
+subsequent iterations.
+--------------------------------------------------------------------------------
+Token Refresh
+
+The functionality will attempt token refresh if a token has expired (if the
+original token request produced a refresh_token).
+--------------------------------------------------------------------------------
 Modules in this library:
 
     \TCCL\OAuth2\OAuth2
     \TCCL\OAuth2\ClientCredentials
     \TCCL\OAuth2\AuthCode
     \TCCL\OAuth2\DrupalAuthCode
+    \TCCL\OAuth2\HTTPRequest
