@@ -68,7 +68,7 @@ class HTTPRequest {
         'request_method' => self::HTTP_POST,
         'headers' => array(
             'Connection' => 'keep-alive',
-            'User-Agent' => 'lib-oauth2-client/2.1.0'
+            'User-Agent' => 'lib-oauth2-client/2.2.1'
         ),
         'data' => null,
         'query' => null
@@ -234,8 +234,12 @@ class HTTPRequest {
         $this->cache['request'] = $request;
 
         if ($compileOnly) {
-            // Don't perform the request.
-            return new stdClass;
+            // Don't perform the request. Return an object that contains the
+            // socket address and request.
+            return (object) array(
+                'sockaddr' => $sockaddr,
+                'request' => $request,
+            );
         }
 
         // Perform the request.
@@ -512,7 +516,7 @@ class HTTPRequest {
         // we do not handle these here.
 
         // Load any values from a previous iteration of this routine.
-        $payload = isset($progress['payload']) ? $progress['payload'] : "";
+        $payload = isset($progress['payload']) ? $progress['payload'] : '';
         $stage = isset($progress['stage']) ? $progress['stage'] : 1;
 
         // Enter a loop to read data chunks.
@@ -520,19 +524,17 @@ class HTTPRequest {
             // Restore previous context only once (I know, this is nasty! But
             // it's quick (unfortunately PHP doesn't let me jump into a loop...).
             if (isset($stage)) {
-                $cpy = $stage;
-                unset($stage);
-                if ($cpy == 1) {
+                if ($stage == 1) {
                     goto one;
                 }
-                else if ($cpy == 2) {
+                else if ($stage == 2) {
                     goto two;
                 }
-                else if ($cpy == 3) {
+                else if ($stage == 3) {
                     goto three;
                 }
                 else {
-                    goto four;
+                    goto four; // done
                 }
             }
 
@@ -579,17 +581,19 @@ class HTTPRequest {
                     __METHOD__.": chunked transfer not encoded correctly",
                     HTTPException::HTTP_EXCEPTION_BAD_RESPONSE);
             }
+
+            unset($stage);
         }
 
     four:
         // If $stage < 4, then an error occurred somewhere in stages 1-3 and we
-        // need to quit. Ttherwise we verify the trailing CRLF sequence.
+        // need to quit. Otherwise we verify the trailing CRLF sequence.
         if ($stage < 4 || substr($message,$offset,2) != self::CRLF) {
             // Save state in progress variable so we can restore it on the next
             // call (note: $offset should be restored by the caller).
             $progress['payload'] = $payload;
             $progress['iterator'] = $offset;
-            $progress['stage'] = isset($stage) ? $stage : 4;
+            $progress['stage'] = $stage;
             $offset = false; // flag that we failed
         }
         else {
