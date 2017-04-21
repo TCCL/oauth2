@@ -82,7 +82,7 @@ delays.
 --------------------------------------------------------------------------------
 PHP Session Support/Token Caching
 
-You PHP will need to include session support since the functionality will use
+Your PHP will need to include session support since the functionality will use
 the PHP session to cache access tokens and other intermediate state
 information. This is useful for the Authorization Code grant type but also for
 when this library is used from PHP CLI.

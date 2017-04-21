@@ -27,6 +27,7 @@ class HTTPRequest {
 
     const CRLF = "\r\n";
     const HTTP_CONNECTION_TIMEOUT = 60;
+    const SOCK_CHUNK_SIZE = 8192;
 
     /**
      * The original url string
@@ -312,7 +313,11 @@ class HTTPRequest {
                     __METHOD__.": failed to open stream socket to $sockaddr: $errmsg",
                     HTTPException::HTTP_EXCEPTION_CANNOT_CONNECT);
             }
+
+            // Configure stream. We need to guarantee the chunk size ahead of
+            // time so we can do chunking ourselves to avoid useless blocking.
             stream_set_timeout($sock,self::HTTP_CONNECTION_TIMEOUT);
+            stream_set_chunk_size($sock,self::SOCK_CHUNK_SIZE);
         }
 
         // Write the request to the connection.
@@ -321,20 +326,20 @@ class HTTPRequest {
         // Read the response until the end of an HTTP response message.
         $iterator = false;
         while ($iterator === false) {
-            // Attempt to read some more bytes; we consider the connection shut
-            // down if we read the conventional EOF (i.e. empty read) OR if the
-            // read operation timed out.
-            $newbytes = fread($sock,4096);
-            $info = stream_get_meta_data($sock);
-            if (empty($newbytes) || $info['timed_out'])
+            // Read bytes available to the socket stream.
+            $newbytes = fread($sock,self::SOCK_CHUNK_SIZE);
+
+            // Check for exit condition.
+            if (empty($newbytes)) {
                 break;
-            $response .= $newbytes;
+            }
 
             // Attempt to parse the response so far. I hope that most if not all
             // of the message was sent at once. This would mean calls to the
             // following method would be limited. However, some servers will
             // sent data in small increments. To that end the following method
             // will cache its progress in $_ until it can read a whole response.
+            $response .= $newbytes;
             $result = self::parseHttpMessage($response,$iterator,$_);
         }
 
@@ -344,8 +349,8 @@ class HTTPRequest {
             fclose($sock);
             unset(self::$conns[$sockaddr]);
             throw new HTTPException(
-                __METHOD__.": the remote host either took "
-                  . "too long to respond or shut down the connection",
+                __METHOD__.
+                ': the remote host either took too long to respond or shut down the connection',
                 HTTPException::HTTP_EXCEPTION_CONNECTION_TIMED_OUT);
         }
 
@@ -392,7 +397,7 @@ class HTTPRequest {
      *  An associative array containing the response headers, status code,
      *  status message and data payload.
      */
-    private static function parseHttpMessage($response,&$iterator,&$progress) {
+    static private function parseHttpMessage($response,&$iterator,&$progress) {
         // Check to see if we've already parsed the header fields.
         if (!isset($progress['header-state'])) {
             $result = array(); // the result array
@@ -409,6 +414,10 @@ class HTTPRequest {
                     // Flag that we have reached the end of the headers section.
                     $progress['header-state'] = $result;
                     $progress['iterator'] = $iterator;
+                    break;
+                }
+                // If the line is incomplete then we must abort.
+                else if ($iterator > strlen($response)) {
                     break;
                 }
 
@@ -497,7 +506,7 @@ class HTTPRequest {
      * @return string
      *  The decoded response payload.
      */
-    private static function chunkedTransferDecode($message,&$offset,&$progress) {
+    static private function chunkedTransferDecode($message,&$offset,&$progress) {
         // Note: the HTTP/1.1 spec (i.e. rfc2616 sec-3.6.1) details a
         // chunk-extension syntax and trailer syntax (for additional headers);
         // we do not handle these here.
