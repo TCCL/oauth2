@@ -210,7 +210,7 @@ abstract class OAuth2 {
      *  The request method to specify
      * @param array $params
      *  Any extra HTTP request parameters; see HTTPRequest::__construct in
-     *  http.php.inc for more details.
+     *  HTTPRequest.php for more details.
      *
      * @return object
      *  The HTTP response encoded as a PHP object. Check the 'data' member for

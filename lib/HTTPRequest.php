@@ -49,11 +49,12 @@ class HTTPRequest {
      *  - headers
      *      Headers to include in the request
      *  - data
-     *      Associative array of data payload fields; these are interpreted into
-     *      a query string
+     *      The content to include in the request body. If this is an
+     *      associative array, then the key-value pairs are interpreted into a
+     *      form urlencoded string
      *  - query
-     *      associative array of data fields to include as a query string; this
-     *      will be passed to http_build_query()
+     *      An associative array of data fields to include as a query string;
+     *      this will be passed to http_build_query()
      *
      * @var array
      */
@@ -141,8 +142,9 @@ class HTTPRequest {
         // Unionize with user-specified parameters. This may override some of
         // the parameters we just deduced and/or the defaults.
         if (is_array($params)) {
-            if (array_key_exists('headers',$params))
+            if (array_key_exists('headers',$params)) {
                 $params['headers'] = $params['headers'] + $this->params['headers'];
+            }
             $this->params = $params + $this->params;
         }
     }
@@ -220,7 +222,7 @@ class HTTPRequest {
                 }
             }
             else {
-                $dataBody .= "{$this->params['data']}";
+                $dataBody = "{$this->params['data']}";
             }
         }
         if (!empty($dataBody)) {
