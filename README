@@ -1,4 +1,4 @@
-oauth2 PHP library - version 2.2.1
+oauth2 PHP library - version 2.2.2
 --------------------------------------------------------------------------------
 This repository provides a PHP composer package that provides OAuth2
 functionality. Currently the implementation supports the following OAuth2
