@@ -369,7 +369,7 @@ class HTTPRequest {
         }
         else {
             $remain = substr($response,$iterator);
-            self::$conns[$sockaddr] = array($sock,$remain === false ? "" : $remain);
+            self::$conns[$sockaddr] = array($sock,empty($remain) ? "" : $remain);
         }
 
         // Map any "dashed" key names to Camel-case.
@@ -484,7 +484,7 @@ class HTTPRequest {
                 $contentLength = intval($result['content-length']);
                 if ($contentLength > 0) {
                     $data = substr($response,$iterator,$contentLength);
-                    if ($data === false || strlen($data) < $contentLength) {
+                    if (empty($data) || strlen($data) < $contentLength) {
                         $iterator = false;
                     }
                     else {
@@ -562,7 +562,7 @@ class HTTPRequest {
         two:
             // Grab the chunk data.
             $s = substr($message,$offset,$progress['bcount']);
-            if ($s === false || strlen($s) < $progress['bcount']) {
+            if (empty($s) || strlen($s) < $progress['bcount']) {
                 $stage = 2;
                 break; // not enough bytes
             }
@@ -573,7 +573,7 @@ class HTTPRequest {
         three:
             // Verify that a CLRF sequence was found after the chunk data.
             if (($test = substr($message,$offset-2,2)) != self::CRLF) {
-                if ($test === false) {
+                if (empty($test)) {
                     $stage = 3;
                     break; // not enough bytes
                 }
